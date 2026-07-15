@@ -22,7 +22,14 @@ log = logging.getLogger(__name__)
 
 @dataclass
 class _CallRecord:
-    """One profiled call."""
+    """One profiled call.
+
+    Attributes:
+        name: human-readable label.
+        duration_ms: wall time of the call.
+        bytes_in: optional logical-input size.
+        bytes_out: optional logical-output size.
+    """
 
     name: str
     duration_ms: float
@@ -30,6 +37,7 @@ class _CallRecord:
     bytes_out: int = 0
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialise the record (used by ``summary()`` and JSON output)."""
         return {
             "name": self.name,
             "duration_ms": self.duration_ms,
@@ -40,14 +48,31 @@ class _CallRecord:
 
 @dataclass
 class CompressionProfiler:
-    """Records timings of named calls."""
+    """Records timings of named calls.
+
+    Use as a context manager::
+
+        prof = CompressionProfiler()
+        with prof.record("compress_one"):
+            ...
+        prof.summary()
+    """
 
     records: list[_CallRecord] = field(default_factory=list)
     _enabled: bool = True
 
     @contextmanager
     def record(self, name: str, *, bytes_in: int = 0, bytes_out: int = 0):
-        """Time a code block."""
+        """Context manager that times the wrapped block.
+
+        Args:
+            name: human-readable label for this call site.
+            bytes_in: optional logical-input size attached to the record.
+            bytes_out: optional logical-output size attached to the record.
+
+        The ``finally`` block always appends the record (even on
+        exceptions) so failed calls show up in the summary too.
+        """
         if not self._enabled:
             yield
             return
@@ -63,7 +88,11 @@ class CompressionProfiler:
             )
 
     def summary(self) -> dict[str, dict[str, Any]]:
-        """Aggregate records by name."""
+        """Aggregate records by ``name``.
+
+        For each name: ``count``, ``total_ms``, ``mean_ms``, ``bytes_in``,
+        ``bytes_out``.
+        """
         out: dict[str, dict[str, Any]] = {}
         for r in self.records:
             agg = out.setdefault(
@@ -78,6 +107,7 @@ class CompressionProfiler:
         return out
 
     def reset(self) -> None:
+        """Drop every recorded call. Useful between test cases."""
         self.records.clear()
 
 

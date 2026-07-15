@@ -29,7 +29,12 @@ log = logging.getLogger(__name__)
 
 
 def time_call(fn, n_warmup: int = 1, n_iter: int = 5) -> float:
-    """Return mean wall time in milliseconds across ``n_iter`` calls."""
+    """Return mean wall time in milliseconds across ``n_iter`` calls.
+
+    Includes ``n_warmup`` unmeasured calls before the timed loop to
+    amortise first-call cache effects (PyTorch's allocator, JIT
+    compilation, etc.).
+    """
     for _ in range(n_warmup):
         fn()
     times = []
@@ -48,6 +53,18 @@ def run_speed_sweep(
     ratio: float,
     seed: int = 0,
 ) -> list[dict[str, object]]:
+    """Measure compress / decompress wall time for each method at ``ratio``.
+
+    Args:
+        m: merged head × layer count.
+        T: token axis length.
+        dh: per-head feature dim.
+        ratio: compression ratio passed to JoLT and FlashJoLT.
+        seed: random seed for the synthetic K/V.
+
+    Returns:
+        List of result dicts; one per method.
+    """
     torch.manual_seed(seed)
     K = torch.randn(m, T, dh)
     V = torch.randn(m, T, dh)
@@ -82,6 +99,7 @@ def run_speed_sweep(
 
 
 def main() -> None:
+    """CLI entry point. Parses ``--m --T --dh --ratio --seed --output``."""
     parser = argparse.ArgumentParser(description="Compression speed benchmark")
     parser.add_argument("--m", type=int, default=8)
     parser.add_argument("--T", type=int, default=1024)

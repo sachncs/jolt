@@ -27,7 +27,7 @@ log = logging.getLogger(__name__)
 
 
 def is_triton_available() -> bool:
-    """Return True if Triton is importable."""
+    """Return True if Triton is importable on this system."""
     try:
         import triton  # noqa: F401
 
@@ -43,7 +43,18 @@ def tucker_reconstruct(
 ):
     """Fused Tucker reconstruction.
 
-    Falls back to PyTorch einsum when Triton is unavailable.
+    Falls back to PyTorch ``einsum`` when Triton is unavailable. The
+    signature is intentionally untyped (``core`` etc. are not annotated)
+    because the call sites pass ``Tensor`` instances from heterogeneous
+    dtypes and we don't want type checks to interfere.
+
+    Args:
+        core: shape ``(m, rT, rd)`` Tucker core.
+        u_token: shape ``(T, rT)`` token-mode basis.
+        u_feature: shape ``(dh, rd)`` feature-mode basis.
+
+    Returns:
+        Reconstructed tensor of shape ``(m, T, dh)``.
     """
     import torch
 
@@ -51,14 +62,30 @@ def tucker_reconstruct(
 
 
 def jl_project(x, matrix):
-    """JL projection via dense matmul."""
+    """JL projection via dense matmul.
+
+    Args:
+        x: tensor with last dim ``matrix.shape[-1]``.
+        matrix: shape ``(dh, dh)`` rotation.
+
+    Returns:
+        Tensor with same shape as ``x``.
+    """
     import torch  # noqa: F401
 
     return x @ matrix.t()
 
 
 def quantize_int8(x):
-    """Per-channel int8 quantization (Triton when available)."""
+    """Per-channel int8 quantization (Triton when available).
+
+    Args:
+        x: 2-D tensor; last dim is the channel axis.
+
+    Returns:
+        Tuple ``(packed, scale, zero_point)`` matching
+        :meth:`IntQuantizer.quantize`.
+    """
     from kvcompress.compressor.quantization import IntQuantizer
 
     q = IntQuantizer(bits=8, symmetric=True, per_channel=True)

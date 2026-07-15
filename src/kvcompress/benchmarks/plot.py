@@ -21,6 +21,7 @@ log = logging.getLogger(__name__)
 
 
 def _have_matplotlib() -> bool:
+    """Return True if ``matplotlib`` is importable."""
     try:
         import matplotlib  # noqa: F401
 
@@ -30,7 +31,14 @@ def _have_matplotlib() -> bool:
 
 
 def plot_memory_sweep(rows: list[dict[str, Any]], output_path: str | Path) -> None:
-    """Bar chart: bytes_compressed vs ratio_target, grouped by method."""
+    """Bar chart: bytes_compressed vs ratio_target, grouped by method.
+
+    Args:
+        rows: list of dicts as written by :func:`run_memory_sweep`.
+        output_path: destination PNG path.
+
+    Skips silently if matplotlib isn't installed.
+    """
     if not _have_matplotlib():
         log.warning("matplotlib not installed; skipping plot")
         return
@@ -66,7 +74,11 @@ def plot_memory_sweep(rows: list[dict[str, Any]], output_path: str | Path) -> No
 
 
 def plot_reconstruction_table(rows: list[dict[str, Any]], output_path: str | Path) -> None:
-    """Bar chart: relative Frobenius error (K and V) per method."""
+    """Bar chart: relative Frobenius error (K and V) per method.
+
+    Y-axis is log scale because the spread across methods is large.
+    Skips silently if matplotlib isn't installed.
+    """
     if not _have_matplotlib():
         log.warning("matplotlib not installed; skipping plot")
         return
@@ -92,6 +104,7 @@ def plot_reconstruction_table(rows: list[dict[str, Any]], output_path: str | Pat
 
 
 def load_json(path: str | Path) -> Any:
+    """Read a JSON file and return its parsed contents."""
     with open(path) as f:
         return json.load(f)
 

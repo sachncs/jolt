@@ -45,7 +45,16 @@ def version() -> None:
 def validate(
     skip_hf: bool = typer.Option(False, help="Skip the Hugging Face smoke test"),
 ) -> None:
-    """Run a smoke test of the installed package."""
+    """Run a smoke test of the installed package.
+
+    Three checks:
+
+    1. JoLT round-trip on synthetic K/V. Should report a small relative
+       Frobenius error (typically < 0.5 for the default settings).
+    2. FlashJoLT round-trip on the same K/V.
+    3. End-to-end generation with GPT-2 (unless ``--skip-hf`` is given
+       or ``transformers`` isn't installed).
+    """
     import kvcompress
     import torch
 
@@ -102,7 +111,17 @@ def benchmark(
     suite: str = typer.Option("all", help="which benchmark suite to run"),
     output_dir: Path = typer.Option(Path("benchmarks/output"), help="output directory"),
 ) -> None:
-    """Run benchmark suite (memory / speed / reconstruction)."""
+    """Run the benchmark suite (memory / speed / reconstruction).
+
+    Args:
+        suite: one of ``all``, ``memory``, ``speed``, ``reconstruction``.
+        output_dir: directory for JSON + PNG outputs.
+
+    Each sub-suite is spawned as a subprocess so a failure in one
+    doesn't take down the others. JSON files land in ``output_dir``;
+    matplotlib PNG charts are written next to them if matplotlib is
+    installed.
+    """
     output_dir.mkdir(parents=True, exist_ok=True)
 
     if suite in ("all", "memory"):
@@ -174,7 +193,7 @@ def profile(
     ratio: float = typer.Option(3.0, help="compression ratio"),
     max_new: int = typer.Option(20, help="tokens to generate"),
 ) -> None:
-    """Profile a model with compression enabled."""
+    """Profile a model with compression enabled and print cumulative stats."""
     subprocess.check_call(
         [
             sys.executable,
@@ -198,7 +217,11 @@ def compress(
     prompt: str = typer.Option("Hello, my name is", help="prompt text"),
     max_new: int = typer.Option(20, help="tokens to generate"),
 ) -> None:
-    """Run a one-shot compression pass on a prompt."""
+    """Run a one-shot compression pass on a prompt and print the output.
+
+    The compression handle is enabled for the duration of ``model.generate``
+    and disabled before returning.
+    """
     try:
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer

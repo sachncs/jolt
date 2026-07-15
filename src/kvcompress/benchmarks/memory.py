@@ -39,6 +39,24 @@ def run_memory_sweep(
     methods: list[str],
     seed: int = 0,
 ) -> list[dict[str, object]]:
+    """Run the memory benchmark sweep.
+
+    For each (method, ratio) pair, compress a synthetic K and V and
+    record bytes-original, bytes-compressed, and the achieved ratio.
+    Identity is always included as a no-compression baseline.
+
+    Args:
+        m: merged head × layer count.
+        T: token axis length.
+        dh: per-head feature dim.
+        ratios: target compression ratios to sweep.
+        methods: compressor names to benchmark.
+        seed: random seed for the synthetic K/V.
+
+    Returns:
+        List of result dicts; one per (method, ratio) plus one for the
+        identity baseline.
+    """
     torch.manual_seed(seed)
     K = torch.randn(m, T, dh)
     V = torch.randn(m, T, dh)
@@ -86,6 +104,7 @@ def run_memory_sweep(
 
 
 def main() -> None:
+    """CLI entry point. Parses ``--m --T --dh --ratios --methods --seed --output``."""
     parser = argparse.ArgumentParser(description="Memory benchmark")
     parser.add_argument("--m", type=int, default=8)
     parser.add_argument("--T", type=int, default=1024)

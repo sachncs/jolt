@@ -32,6 +32,14 @@ class MemoryPool:
     """
 
     def __init__(self, max_per_key: int = 32) -> None:
+        """Initialise the pool with the per-key cap.
+
+        Args:
+            max_per_key: maximum number of buffers to keep per
+                ``(shape, dtype, device)`` key. Older buffers are
+                dropped (freed to torch's caching allocator) when the
+                cap is hit.
+        """
         self.max_per_key = int(max_per_key)
         self._pool: dict[tuple[tuple[int, ...], torch.dtype, torch.device], list[torch.Tensor]] = (
             defaultdict(list)
@@ -43,7 +51,11 @@ class MemoryPool:
         dtype: torch.dtype = torch.float32,
         device: torch.device | str = "cpu",
     ) -> torch.Tensor:
-        """Return a tensor of ``shape`` from the pool (or allocate new)."""
+        """Return a zeroed tensor of ``shape`` from the pool or allocate new.
+
+        The returned tensor is **zeroed** so callers can't accidentally
+        read stale data from a previously-released buffer.
+        """
         key = (tuple(shape), dtype, torch.device(device))
         bucket = self._pool.get(key)
         if bucket:
@@ -53,7 +65,7 @@ class MemoryPool:
         return torch.empty(shape, dtype=dtype, device=device)
 
     def release(self, tensor: torch.Tensor) -> None:
-        """Return a tensor to the pool."""
+        """Return a tensor to the pool. No-op if the per-key cap is full."""
         key = (tuple(tensor.shape), tensor.dtype, tensor.device)
         bucket = self._pool[key]
         if len(bucket) >= self.max_per_key:
@@ -61,9 +73,11 @@ class MemoryPool:
         bucket.append(tensor)
 
     def clear(self) -> None:
+        """Drop every pooled buffer. Useful in test fixtures."""
         self._pool.clear()
 
     def stats(self) -> dict[str, Any]:
+        """Return ``{"num_keys": int, "total_buffers": int}``."""
         return {
             "num_keys": len(self._pool),
             "total_buffers": sum(len(b) for b in self._pool.values()),

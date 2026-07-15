@@ -56,7 +56,25 @@ def make_synthetic_kv(
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Construct synthetic K/V tensors whose spectra mimic Mistral-7B layer 15.
 
-    Returns ``(K, V)`` tensors of shape ``(m, T, dh)``.
+    The default ranks are from the paper's Appendix A:
+
+    * K: token-rank-at-10%-error = 228, feature-rank-at-10%-error = 101.
+    * V: token-rank-at-10%-error = 563, feature-rank-at-10%-error = 126.
+
+    We use 1/i singular-value decay on the core so high-index
+    components have very little energy, matching the paper's measured
+    Mistral-7B layer 15 spectra.
+
+    Args:
+        m: merged head × layer count.
+        T: token axis length.
+        dh: per-head feature dim.
+        k_token_rank, v_token_rank: effective token ranks for K and V.
+        k_feature_rank, v_feature_rank: effective feature ranks for K and V.
+        seed: random seed.
+
+    Returns:
+        Tuple ``(K, V)`` of tensors with shape ``(m, T, dh)``.
     """
     gen = torch.Generator(device="cpu")
     gen.manual_seed(seed)
@@ -94,6 +112,7 @@ class ReconstructionResult:
 
 
 def _rel_err(x: torch.Tensor, x_hat: torch.Tensor) -> float:
+    """Relative Frobenius error ``||x - x_hat|| / ||x||``."""
     return float(torch.linalg.norm(x - x_hat) / torch.linalg.norm(x))
 
 
@@ -105,6 +124,20 @@ def run_table2(
     seed: int = 0,
     compression_ratio: float = 2.0,
 ) -> list[ReconstructionResult]:
+    """Reproduce paper Table 2 on synthetic K/V.
+
+    For each method we compress the synthetic K/V and record
+    relative Frobenius error on K and V, plus bytes compressed and
+    achieved ratio.
+
+    Args:
+        m, T, dh: K/V tensor shape.
+        seed: random seed for ``make_synthetic_kv``.
+        compression_ratio: target ratio for JoLT and FlashJoLT.
+
+    Returns:
+        One ``ReconstructionResult`` per method.
+    """
     K, V = make_synthetic_kv(m=m, T=T, dh=dh, seed=seed)
     results = []
 
