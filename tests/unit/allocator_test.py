@@ -128,6 +128,4 @@ def test_allocator_achieves_target_within_rounding() -> None:
         res = JointAllocator(target_ratio=ratio).optimize(cells)
         # Discrete grid; log-space ratio distance to target ≤ 1.0 nat.
         score = abs(math.log(res.achieved_ratio) - math.log(ratio))
-        assert score < 1.0, (
-            f"ratio={ratio}: achieved={res.achieved_ratio:.2f}, score={score:.2f}"
-        )
+        assert score < 1.0, f"ratio={ratio}: achieved={res.achieved_ratio:.2f}, score={score:.2f}"

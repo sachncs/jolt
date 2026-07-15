@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 import torch
 
-from kvcompress.compressor.svd import SVD, SVDResult
+from kvcompress.compressor.svd import SVD
 
 
 @pytest.fixture

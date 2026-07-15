@@ -161,8 +161,16 @@ def test_metadata_layer_roundtrip() -> None:
     )
     meta.add_layer(
         LayerCompression(
-            layer=0, kind="key", m=4, tokens=64, dh=16,
-            r_token=8, r_feature=4, bits=4, bytes_original=8192, bytes_compressed=2048,
+            layer=0,
+            kind="key",
+            m=4,
+            tokens=64,
+            dh=16,
+            r_token=8,
+            r_feature=4,
+            bits=4,
+            bytes_original=8192,
+            bytes_compressed=2048,
         )
     )
     d = meta.to_dict()

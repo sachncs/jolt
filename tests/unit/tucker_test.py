@@ -7,7 +7,6 @@ import torch
 
 from kvcompress.compressor.svd import SVD
 from kvcompress.compressor.tucker import (
-    TuckerFactors,
     mode_n_fold,
     mode_n_unfold,
     partial_tucker_st_hosvd,
