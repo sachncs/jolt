@@ -168,12 +168,20 @@ class SVD:
         a: torch.Tensor,
         rank: int | None = None,
     ) -> SVDResult:
-        """Compute the exact truncated SVD ``A ≈ U_r Σ_r V_rᵀ``."""
+        """Compute the exact truncated SVD ``A ≈ U_r Σ_r V_rᵀ``.
+
+        Half-precision inputs (fp16, bf16) are upcast to float32 for the
+        SVD computation since ``torch.linalg.svd`` doesn't support fp16 on
+        CPU. The output bases are returned in the input's original dtype.
+        """
         if a.dim() != 2:
             raise ValueError(f"SVD expects a 2-D matrix, got shape {tuple(a.shape)}")
+        # torch.linalg.svd on CPU supports only float32 / float64.
+        compute_dtype = a.dtype if a.dtype in (torch.float32, torch.float64) else torch.float32
+        a_compute = a.to(compute_dtype) if a.dtype != compute_dtype else a
         m, n = a.shape
         max_rank = min(m, n)
-        full = torch.linalg.svd(a, full_matrices=False)
+        full = torch.linalg.svd(a_compute, full_matrices=False)
         u, s, vh = full.U, full.S, full.Vh
         if rank is None or rank >= max_rank:
             tail = 0.0
@@ -181,6 +189,11 @@ class SVD:
         else:
             tail = tail_mass(s, rank)
             u_out, s_out, vh_out = u[:, :rank], s[:rank], vh[:rank, :]
+        # Cast outputs back to the input dtype if we upcast.
+        if a.dtype != compute_dtype:
+            u_out = u_out.to(a.dtype)
+            s_out = s_out.to(a.dtype)
+            vh_out = vh_out.to(a.dtype)
         return SVDResult(
             u=u_out.contiguous(),
             s=s_out.contiguous(),
@@ -216,22 +229,27 @@ class SVD:
         k = max(k, rank + 1)
         k = min(k, max_rank)
 
+        # torch.linalg.svd on CPU supports only float32 / float64. Cast
+        # for the computation, restore the input dtype on the way out.
+        compute_dtype = a.dtype if a.dtype in (torch.float32, torch.float64) else torch.float32
+        a_compute = a.to(compute_dtype) if a.dtype != compute_dtype else a
+
         gen = torch.Generator(device="cpu")
         gen.manual_seed(self.seed)
 
         # Stage A: form a Gaussian sketch Y = A @ Omega.
-        omega = torch.randn(n, k, generator=gen, dtype=a.dtype)
-        y = a @ omega
+        omega = torch.randn(n, k, generator=gen, dtype=compute_dtype)
+        y = a_compute @ omega
 
         # Optional power iterations: Y = (A A^T)^q A Omega.
         for _ in range(self.n_power):
-            y = a @ (a.t() @ y)
+            y = a_compute @ (a_compute.t() @ y)
 
         # Orthonormalise Q via QR.
         q, _ = torch.linalg.qr(y, mode="reduced")
 
         # Stage B: SVD on the small matrix B = Q^T A.
-        b = q.t() @ a
+        b = q.t() @ a_compute
         u_b, s_b, vh_b = torch.linalg.svd(b, full_matrices=False)
 
         # Lift U to the original space.
@@ -249,12 +267,18 @@ class SVD:
         # typical long-context case we use the *retained* mass from the
         # Stage-B SVD on B (the randomised approximation of A's spectrum).
         # The JL-style estimator is: tail_mass ≈ 1 - sum(s_r**2) / ||A||_F**2.
-        a_fro_sq = float(torch.sum(a * a))
+        a_fro_sq = float(torch.sum(a_compute * a_compute))
         retained = float(torch.sum(s_r * s_r))
         if a_fro_sq > 0:
             tail_mass = max(0.0, 1.0 - retained / a_fro_sq)
         else:
             tail_mass = 0.0
+
+        # Cast outputs back to the input dtype if we upcast.
+        if a.dtype != compute_dtype:
+            u_r = u_r.to(a.dtype)
+            s_r = s_r.to(a.dtype)
+            vh_r = vh_r.to(a.dtype)
 
         log.debug(
             "SVD.randomise: rank=%d oversampling=%d n_power=%d tail_mass=%.4e",

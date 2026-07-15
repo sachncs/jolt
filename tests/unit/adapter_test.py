@@ -43,7 +43,14 @@ def test_registry_resolve() -> None:
 
 def test_registry_register_custom() -> None:
     register("custom-test", "kvcompress.adapters.llama")
-    assert resolve("custom-test") == "kvcompress.adapters.llama"
+    try:
+        assert resolve("custom-test") == "kvcompress.adapters.llama"
+    finally:
+        # Clean up so we don't pollute the global registry for other tests.
+        from kvcompress.adapters import registry
+
+        if "custom-test" in registry._REGISTRY:
+            del registry._REGISTRY["custom-test"]
 
 
 def test_registry_register_duplicate_raises() -> None:
