@@ -1,0 +1,4 @@
+# file: /Users/sachin/repo/jolt/src/kvcompress/adapters/vllm.py
+# hypothesis_version: 6.148.6
+
+[0.0, 1.0, 3.0, '.meta.json', '/', '100%', 'cache', 'compress', 'core', 'export_kv', 'flashjolt', 'gaussian', 'identity', 'import_kv', 'is_vllm_available', 'jolt', 'key', 'kv_cache', 'past_key_values', 'residual_packed', 'residual_scale', 'residual_zero_point', 'u_feature', 'u_token', 'value', 'w']
