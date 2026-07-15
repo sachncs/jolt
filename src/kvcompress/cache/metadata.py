@@ -63,19 +63,23 @@ class LayerCompression:
 
     @property
     def shape(self) -> tuple[int, int, int]:
+        """Original (m, tokens, dh) shape of the cell."""
         return (self.m, self.tokens, self.dh)
 
     @property
     def compression_ratio(self) -> float:
+        """Achieved compression ratio (original / compressed). 1.0 if empty."""
         if self.bytes_compressed == 0:
             return 1.0
         return self.bytes_original / self.bytes_compressed
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialise to a plain dict (JSON-friendly)."""
         return asdict(self)
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "LayerCompression":
+        """Inverse of :meth:`to_dict`."""
         return cls(**d)
 
 
@@ -101,12 +105,23 @@ class CompressionMetadata:
     extras: dict[str, Any] = field(default_factory=dict)
 
     def layer(self, idx: int) -> LayerCompression:
+        """Return the first :class:`LayerCompression` for ``idx``.
+
+        Raises:
+            KeyError: if no entry matches.
+        """
         for entry in self.layers:
             if entry.layer == idx:
                 return entry
         raise KeyError(f"no metadata for layer {idx}")
 
     def add_layer(self, entry: LayerCompression) -> None:
+        """Insert ``entry``, replacing any existing (layer, kind) match.
+
+        Replacing rather than appending means a re-store of the same
+        (layer, kind) pair updates the metadata in place rather than
+        accumulating duplicates.
+        """
         for i, existing in enumerate(self.layers):
             if existing.layer == entry.layer and existing.kind == entry.kind:
                 self.layers[i] = entry
@@ -114,17 +129,21 @@ class CompressionMetadata:
         self.layers.append(entry)
 
     def bytes_original(self) -> int:
+        """Sum of uncompressed bytes across all layer entries."""
         return sum(entry.bytes_original for entry in self.layers)
 
     def bytes_compressed(self) -> int:
+        """Sum of compressed bytes across all layer entries."""
         return sum(entry.bytes_compressed for entry in self.layers)
 
     def compression_ratio(self) -> float:
+        """Aggregate compression ratio across all entries."""
         o = self.bytes_original()
         c = self.bytes_compressed()
         return o / c if c else 1.0
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialise to a JSON-friendly dict."""
         return {
             "method": self.method,
             "dtype": self.dtype,
@@ -136,6 +155,7 @@ class CompressionMetadata:
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "CompressionMetadata":
+        """Inverse of :meth:`to_dict`."""
         return cls(
             method=d["method"],
             dtype=d["dtype"],

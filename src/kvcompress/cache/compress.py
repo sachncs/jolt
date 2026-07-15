@@ -84,6 +84,19 @@ class CompressedKVCache:
         max_layers: int | None = None,
         device: torch.device | str | None = None,
     ) -> None:
+        """Initialise the cache.
+
+        Args:
+            compressor: compressor used to (de)compress every entry. Held
+                by reference; the cache does not own its lifecycle.
+            metadata: optional initial :class:`CompressionMetadata`.
+                Mutated as entries are added. If ``None``, a fresh
+                metadata object is created using ``compressor.name``.
+            max_layers: optional cap on number of layers kept in memory;
+                older layers are evicted LRU. ``None`` means no eviction.
+            device: device tensors will be moved to on reconstruction.
+                ``None`` preserves the device of the stored factors.
+        """
         self._compressor = compressor
         self._metadata = metadata or CompressionMetadata(
             method=compressor.name,
@@ -158,13 +171,16 @@ class CompressedKVCache:
         raise ValueError(f"kind must be 'key' or 'value', got {kind!r}")
 
     def has_layer(self, layer: int) -> bool:
+        """Return ``True`` if the cache has an entry for ``layer``."""
         return layer in self._entries
 
     def clear(self) -> None:
+        """Drop every entry and reset the metadata layer list."""
         self._entries.clear()
         self._metadata.layers.clear()
 
     def evict_layer(self, layer: int) -> None:
+        """Remove the entry for ``layer`` if present; no-op otherwise."""
         self._entries.pop(layer, None)
         self._metadata.layers = [entry for entry in self._metadata.layers if entry.layer != layer]
 
@@ -177,14 +193,26 @@ class CompressedKVCache:
         return sum(p.bytes_compressed for p in self._all_payloads())
 
     def memory_original(self) -> int:
+        """Sum of ``bytes_original`` across all stored payloads."""
         return sum(p.bytes_original for p in self._all_payloads())
 
     def compression_ratio(self) -> float:
+        """Achieved compression ratio across all stored payloads.
+
+        Returns ``original / compressed``. Returns 1.0 if no payloads are
+        stored (the "no cache" identity).
+        """
         o = self.memory_original()
         c = self.memory_used()
         return o / c if c else 1.0
 
     def stats(self) -> dict[str, Any]:
+        """Aggregate stats for logging and benchmarks.
+
+        Returns:
+            Dictionary with keys ``n_layers``, ``bytes_original``,
+            ``bytes_compressed``, ``compression_ratio``, ``method``.
+        """
         return {
             "n_layers": len(self._entries),
             "bytes_original": self.memory_original(),
@@ -194,6 +222,7 @@ class CompressedKVCache:
         }
 
     def metadata(self) -> CompressionMetadata:
+        """Return the live :class:`CompressionMetadata` (mutated in place)."""
         return self._metadata
 
     # ------------------------------------------------------------------
@@ -201,12 +230,15 @@ class CompressedKVCache:
     # ------------------------------------------------------------------
 
     def layers(self) -> Iterator[int]:
+        """Iterate over live layer indices in insertion order."""
         return iter(list(self._entries.keys()))
 
     def __len__(self) -> int:
+        """Number of layers currently stored."""
         return len(self._entries)
 
     def __contains__(self, layer: int) -> bool:
+        """``layer in cache`` is ``True`` when the layer has an entry."""
         return layer in self._entries
 
     # ------------------------------------------------------------------
@@ -214,6 +246,7 @@ class CompressedKVCache:
     # ------------------------------------------------------------------
 
     def _all_payloads(self) -> list[CompressedPayload]:
+        """Flatten K and V payloads across all live entries."""
         out: list[CompressedPayload] = []
         for e in self._entries.values():
             if e.key is not None:
@@ -223,6 +256,12 @@ class CompressedKVCache:
         return out
 
     def _enforce_eviction(self) -> None:
+        """Drop the oldest entries until the cache fits under ``max_layers``.
+
+        Uses LRU semantics (``OrderedDict.popitem(last=False)``) so the
+        least-recently-stored layer is evicted first. The matching
+        metadata entries are removed in the same pass.
+        """
         if self._max_layers is None:
             return
         while len(self._entries) > self._max_layers:
@@ -242,11 +281,19 @@ def _normalize_kv(
     key: torch.Tensor,
     value: torch.Tensor,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """Reshape HF-style K/V to the (m, T, dh) layout the algorithm expects.
+    """Reshape HF-style K/V to the ``(m, T, dh)`` layout the algorithm expects.
 
     Accepts ``(B, n_kv, T, dh)`` and ``(n_kv, T, dh)`` and returns
     ``(B·n_kv, T, dh)``. The reverse reshape on the way out restores the
     original layout.
+
+    Why flatten the batch and head axes: the JoLT algorithm operates
+    independently on each (B·n_kv) "merged head" slice, so treating the
+    leading two axes as one keeps the algorithm simple.
+
+    Raises:
+        ValueError: if ``key`` and ``value`` have different shapes, or if
+            ``key`` is not 3-D or 4-D.
     """
     if key.shape != value.shape:
         raise ValueError(f"K/V shape mismatch: {key.shape} vs {value.shape}")
@@ -265,6 +312,12 @@ def _payload_to_meta(
     payload: CompressedPayload,
     seed: int,
 ) -> Any:
+    """Convert a payload to a :class:`LayerCompression` metadata entry.
+
+    Pulls the per-cell ``(r_token, r_feature, bits)`` out of the payload's
+    ``metadata`` dict and stamps the original / compressed byte counts so
+    the cache's stats are correct.
+    """
     from kvcompress.cache.metadata import LayerCompression
 
     return LayerCompression(
