@@ -14,7 +14,7 @@ from kvcompress.compressor.jl import (
 
 
 @pytest.fixture(autouse=True)
-def _clear_cache() -> None:
+def clear_cache() -> None:
     clear_projection_cache()
 
 

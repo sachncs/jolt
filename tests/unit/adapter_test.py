@@ -13,20 +13,20 @@ from kvcompress.adapters.registry import (
 from kvcompress.api import enable_compression, CompressionHandle
 
 
-class _FakeModel:
+class FakeModel:
     """Minimal model-like object for adapter testing."""
 
     def __init__(self, model_type: str = "llama") -> None:
-        class _Config:
+        class Config:
             pass
 
-        self.config = _Config()
+        self.config = Config()
         self.config.model_type = model_type
 
-        class _GenConfig:
+        class GenConfig:
             cache_implementation = None
 
-        self.generation_config = _GenConfig()
+        self.generation_config = GenConfig()
 
 
 def test_registry_known_types() -> None:
@@ -49,8 +49,8 @@ def test_registry_register_custom() -> None:
         # Clean up so we don't pollute the global registry for other tests.
         from kvcompress.adapters import registry
 
-        if "custom-test" in registry._REGISTRY:
-            del registry._REGISTRY["custom-test"]
+        if "custom-test" in registry.REGISTRY:
+            del registry.REGISTRY["custom-test"]
 
 
 def test_registry_register_duplicate_raises() -> None:
@@ -59,7 +59,7 @@ def test_registry_register_duplicate_raises() -> None:
 
 
 def test_install_dispatches() -> None:
-    model = _FakeModel("llama")
+    model = FakeModel("llama")
     from kvcompress.cache.manager import CacheManager
     from kvcompress.compressor.jolt import JoLTCompressor
 
@@ -69,7 +69,7 @@ def test_install_dispatches() -> None:
 
 
 def test_install_unknown_uses_generic() -> None:
-    model = _FakeModel("nonexistent")
+    model = FakeModel("nonexistent")
     from kvcompress.cache.manager import CacheManager
     from kvcompress.compressor.jolt import JoLTCompressor
 
@@ -79,7 +79,7 @@ def test_install_unknown_uses_generic() -> None:
 
 
 def test_enable_compression_on_fake_model() -> None:
-    model = _FakeModel("llama")
+    model = FakeModel("llama")
     handle = enable_compression(model, method="flashjolt", compression_ratio=2.0)
     try:
         assert isinstance(handle, CompressionHandle)
@@ -89,14 +89,14 @@ def test_enable_compression_on_fake_model() -> None:
 
 
 def test_enable_compression_disables() -> None:
-    model = _FakeModel("mistral")
+    model = FakeModel("mistral")
     handle = enable_compression(model, method="jolt", compression_ratio=3.0)
     handle.disable()
     # No assertion on internal state; just that it doesn't raise.
 
 
 def test_enable_compression_requires_target_or_ratio() -> None:
-    model = _FakeModel("llama")
+    model = FakeModel("llama")
     with pytest.raises(ValueError, match="target_memory"):
         enable_compression(model, method="jolt")
 
@@ -116,7 +116,7 @@ def test_target_memory_parses() -> None:
 
 
 def test_handle_stats_dict() -> None:
-    model = _FakeModel("qwen2")
+    model = FakeModel("qwen2")
     handle = enable_compression(model, method="flashjolt", target_memory="33%")
     try:
         d = handle.stats_dict()
@@ -127,6 +127,6 @@ def test_handle_stats_dict() -> None:
 
 
 def test_enable_compression_unknown_method_raises() -> None:
-    model = _FakeModel("llama")
+    model = FakeModel("llama")
     with pytest.raises(NotImplementedError, match="not implemented"):
         enable_compression(model, method="not-a-method", compression_ratio=2.0)

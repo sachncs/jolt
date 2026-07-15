@@ -15,14 +15,14 @@ from kvcompress.compressor.base import (
 )
 
 
-class _Identity(KVCompressor):
+class Identity(KVCompressor):
     """Test compressor that stores K and V as fp16 with no actual compression."""
 
     name = "identity-test"
 
     def __init__(self) -> None:
         super().__init__()
-        self._calls = 0
+        self.calls = 0
 
     def compress(self, key: torch.Tensor, value: torch.Tensor):
         kp = CompressedPayload(
@@ -41,7 +41,7 @@ class _Identity(KVCompressor):
             data={"value": value.to(torch.float16)},
             stats=CompressorStats(bytes_original=value.numel() * value.element_size()),
         )
-        self._calls += 1
+        self.calls += 1
         return kp, vp
 
     def decompress(self, kp: CompressedPayload, vp: CompressedPayload):
@@ -49,8 +49,8 @@ class _Identity(KVCompressor):
 
 
 @pytest.fixture
-def comp() -> _Identity:
-    return _Identity()
+def comp() -> Identity:
+    return Identity()
 
 
 @pytest.fixture
@@ -59,7 +59,7 @@ def kv() -> tuple[torch.Tensor, torch.Tensor]:
     return torch.randn(2, 8, 16), torch.randn(2, 8, 16)
 
 
-def test_store_and_retrieve(comp: _Identity, kv: tuple[torch.Tensor, torch.Tensor]) -> None:
+def test_store_and_retrieve(comp: Identity, kv: tuple[torch.Tensor, torch.Tensor]) -> None:
     cache = CompressedKVCache(compressor=comp)
     k, v = kv
     cache.store(layer=0, key=k, value=v)
@@ -68,7 +68,7 @@ def test_store_and_retrieve(comp: _Identity, kv: tuple[torch.Tensor, torch.Tenso
     assert v_hat.shape == v.shape
 
 
-def test_store_4d_input_normalizes(comp: _Identity) -> None:
+def test_store_4d_input_normalizes(comp: Identity) -> None:
     """HF-style (B, n_kv, T, dh) input is reshaped to (B·n_kv, T, dh)."""
     cache = CompressedKVCache(compressor=comp)
     k = torch.randn(2, 4, 8, 16)
@@ -79,7 +79,7 @@ def test_store_4d_input_normalizes(comp: _Identity) -> None:
     assert k_hat.shape == (8, 8, 16)
 
 
-def test_clear(comp: _Identity, kv: tuple[torch.Tensor, torch.Tensor]) -> None:
+def test_clear(comp: Identity, kv: tuple[torch.Tensor, torch.Tensor]) -> None:
     cache = CompressedKVCache(compressor=comp)
     cache.store(layer=0, key=kv[0], value=kv[1])
     cache.clear()
@@ -87,7 +87,7 @@ def test_clear(comp: _Identity, kv: tuple[torch.Tensor, torch.Tensor]) -> None:
     assert len(cache) == 0
 
 
-def test_evict(comp: _Identity, kv: tuple[torch.Tensor, torch.Tensor]) -> None:
+def test_evict(comp: Identity, kv: tuple[torch.Tensor, torch.Tensor]) -> None:
     cache = CompressedKVCache(compressor=comp)
     cache.store(layer=0, key=kv[0], value=kv[1])
     cache.store(layer=1, key=kv[0], value=kv[1])
@@ -96,7 +96,7 @@ def test_evict(comp: _Identity, kv: tuple[torch.Tensor, torch.Tensor]) -> None:
     assert 1 in cache
 
 
-def test_max_layers_lru(comp: _Identity, kv: tuple[torch.Tensor, torch.Tensor]) -> None:
+def test_max_layers_lru(comp: Identity, kv: tuple[torch.Tensor, torch.Tensor]) -> None:
     cache = CompressedKVCache(compressor=comp, max_layers=2)
     cache.store(layer=0, key=kv[0], value=kv[1])
     cache.store(layer=1, key=kv[0], value=kv[1])
@@ -106,7 +106,7 @@ def test_max_layers_lru(comp: _Identity, kv: tuple[torch.Tensor, torch.Tensor]) 
     assert 2 in cache
 
 
-def test_memory_used(comp: _Identity, kv: tuple[torch.Tensor, torch.Tensor]) -> None:
+def test_memory_used(comp: Identity, kv: tuple[torch.Tensor, torch.Tensor]) -> None:
     cache = CompressedKVCache(compressor=comp)
     cache.store(layer=0, key=kv[0], value=kv[1])
     used = cache.memory_used()
@@ -117,7 +117,7 @@ def test_memory_used(comp: _Identity, kv: tuple[torch.Tensor, torch.Tensor]) -> 
     assert used < original
 
 
-def test_stats(comp: _Identity, kv: tuple[torch.Tensor, torch.Tensor]) -> None:
+def test_stats(comp: Identity, kv: tuple[torch.Tensor, torch.Tensor]) -> None:
     cache = CompressedKVCache(compressor=comp)
     cache.store(layer=0, key=kv[0], value=kv[1])
     s = cache.stats()
@@ -127,7 +127,7 @@ def test_stats(comp: _Identity, kv: tuple[torch.Tensor, torch.Tensor]) -> None:
     assert s["method"] == "identity-test"
 
 
-def test_metadata(comp: _Identity, kv: tuple[torch.Tensor, torch.Tensor]) -> None:
+def test_metadata(comp: Identity, kv: tuple[torch.Tensor, torch.Tensor]) -> None:
     cache = CompressedKVCache(compressor=comp)
     cache.store(layer=0, key=kv[0], value=kv[1])
     meta = cache.metadata()
@@ -135,7 +135,7 @@ def test_metadata(comp: _Identity, kv: tuple[torch.Tensor, torch.Tensor]) -> Non
     assert len(meta.layers) == 2  # K and V entries
 
 
-def test_layers_iterator(comp: _Identity, kv: tuple[torch.Tensor, torch.Tensor]) -> None:
+def test_layers_iterator(comp: Identity, kv: tuple[torch.Tensor, torch.Tensor]) -> None:
     cache = CompressedKVCache(compressor=comp)
     for i in range(3):
         cache.store(layer=i, key=kv[0], value=kv[1])
@@ -143,7 +143,7 @@ def test_layers_iterator(comp: _Identity, kv: tuple[torch.Tensor, torch.Tensor])
     assert layers == [0, 1, 2]
 
 
-def test_payload_access(comp: _Identity, kv: tuple[torch.Tensor, torch.Tensor]) -> None:
+def test_payload_access(comp: Identity, kv: tuple[torch.Tensor, torch.Tensor]) -> None:
     cache = CompressedKVCache(compressor=comp)
     cache.store(layer=0, key=kv[0], value=kv[1])
     p = cache.payload(0, "key")
@@ -179,7 +179,7 @@ def test_metadata_layer_roundtrip() -> None:
     assert meta2.layer(0).r_token == 8
 
 
-def test_cache_manager(comp: _Identity, kv: tuple[torch.Tensor, torch.Tensor]) -> None:
+def test_cache_manager(comp: Identity, kv: tuple[torch.Tensor, torch.Tensor]) -> None:
     mgr = CacheManager(compressor=comp)
     mgr.store(0, kv[0], kv[1])
     k, v = mgr.retrieve(0)
@@ -189,14 +189,14 @@ def test_cache_manager(comp: _Identity, kv: tuple[torch.Tensor, torch.Tensor]) -
     assert len(mgr) == 0
 
 
-def test_cache_manager_evict(comp: _Identity, kv: tuple[torch.Tensor, torch.Tensor]) -> None:
+def test_cache_manager_evict(comp: Identity, kv: tuple[torch.Tensor, torch.Tensor]) -> None:
     mgr = CacheManager(compressor=comp)
     mgr.store(0, kv[0], kv[1])
     mgr.evict(0)
     assert 0 not in mgr
 
 
-def test_cache_manager_stats(comp: _Identity, kv: tuple[torch.Tensor, torch.Tensor]) -> None:
+def test_cache_manager_stats(comp: Identity, kv: tuple[torch.Tensor, torch.Tensor]) -> None:
     mgr = CacheManager(compressor=comp)
     mgr.store(0, kv[0], kv[1])
     s = mgr.stats()

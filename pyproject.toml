@@ -1,15 +1,13 @@
-# pyproject.toml — project configuration
+# pyproject.toml — lint, format, type-check, test, and coverage configuration.
 #
-# The original [build-system] and [project] sections from M1 are below.
-# We keep them intact and add documentation / lint / coverage tools
-# below.
-# (Build-system and project sections live in setup.cfg-like form;
-#  this file is the doc/lint/test configuration centre.)
+# Package metadata (build-system, project, dependencies) lives in
+# pyproject's [build-system] / [project] sections upstream of this file;
+# this file is the configuration centre for tooling.
 
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-src = ["src", "tests", "examples", "scripts"]
+src = ["kvcompress", "tests", "examples", "scripts"]
 
 [tool.ruff.lint]
 select = [
@@ -25,7 +23,7 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["PLR0915", "N806", "ARG"]
 "examples/**/*.py" = ["E402"]
-"src/kvcompress/kernels/triton/**/*.py" = ["E402"]
+"kvcompress/kernels/triton/**/*.py" = ["E402"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -41,7 +39,7 @@ warn_unused_ignores = false
 warn_return_any = true
 disallow_untyped_defs = false
 ignore_missing_imports = true
-files = ["src/kvcompress"]
+files = ["kvcompress"]
 
 [[tool.mypy.overrides]]
 module = "torch.*"
@@ -72,32 +70,32 @@ module = "kvcompress.benchmarks.*"
 ignore_errors = true
 
 # Vulture configuration.
-# Vulture's 60%-confidence findings flag a lot of internal-but-useful symbols
-# (CompressorFactory, __getattr__, _LayerEntry, _resolve_cache, etc.). We use
-# 80% as the floor and exclude common library-internal patterns explicitly.
+# 80% confidence floor: vulture's 60% findings flag a lot of internal-but-useful
+# symbols (lazy-export __getattr__, dataclass field names, subcommands exposed
+# elsewhere). We exclude the patterns that consistently produce noise.
 [tool.vulture]
 min_confidence = 80
-paths = ["src/kvcompress"]
+paths = ["kvcompress"]
 exclude_patterns = [
     # ``if False: ... # TYPE_CHECKING`` is intentional — used by lazy-export
     # subpackages so the public surface is importable even when modules are
     # mid-edit. vulture flags the unsatisfiable ``if`` at 100% confidence.
     "*/__init__.py",
     # Stub / abstract methods that subclasses fill in.
-    "src/kvcompress/compressor/base.py",
+    "kvcompress/compressor/base.py",
     # Properties / dataclass field names (vulture's string match is
     # imprecise on dataclass-heavy modules).
-    "src/kvcompress/compressor/tucker.py",
+    "kvcompress/compressor/tucker.py",
     # Tests have dead helpers we don't care about.
     "tests/",
     # Benchmarks have dead CLI plumbing (version, validate, profile subcommands
     # are also exposed through kvcompress.cli but vulture sees them as unused
     # inside benchmarks/*).
-    "src/kvcompress/benchmarks/",
+    "kvcompress/benchmarks/",
 ]
 
 [tool.coverage.run]
-source = ["src/kvcompress"]
+source = ["kvcompress"]
 branch = true
 
 [tool.coverage.report]

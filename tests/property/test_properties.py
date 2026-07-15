@@ -33,7 +33,7 @@ def test_int_quantization_roundtrip_property(bits: int, data: st.DataObject) -> 
     packed, scale, zp = q.quantize(x)
     x_hat = q.dequantize(packed, scale, zp, output_dtype=torch.float32)
     err = (x - x_hat).abs().max().item()
-    bin_size = x.abs().amax().item() / q._qmax
+    bin_size = x.abs().amax().item() / q.qmax
     assert err <= bin_size + 1e-3
 
 

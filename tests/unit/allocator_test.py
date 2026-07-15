@@ -14,7 +14,7 @@ from kvcompress.compressor.allocator import (
 )
 
 
-def _cells() -> list[Cell]:
+def make_cells() -> list[Cell]:
     return [
         Cell(shape=(8, 256, 64), kind="key", layer_group=0),
         Cell(shape=(8, 256, 64), kind="value", layer_group=0),
@@ -22,7 +22,7 @@ def _cells() -> list[Cell]:
 
 
 def test_joint_allocator_runs() -> None:
-    cells = _cells()
+    cells = make_cells()
     alloc = JointAllocator(target_ratio=3.0)
     res = alloc.optimize(cells)
     assert len(res.allocations) == 2
@@ -30,7 +30,7 @@ def test_joint_allocator_runs() -> None:
 
 
 def test_joint_allocator_hits_budget_3x() -> None:
-    cells = _cells()
+    cells = make_cells()
     alloc = JointAllocator(target_ratio=3.0)
     res = alloc.optimize(cells)
     score = abs(math.log(res.achieved_ratio) - math.log(3.0))
@@ -38,7 +38,7 @@ def test_joint_allocator_hits_budget_3x() -> None:
 
 
 def test_joint_allocator_hits_budget_2x() -> None:
-    cells = _cells()
+    cells = make_cells()
     alloc = JointAllocator(target_ratio=2.0)
     res = alloc.optimize(cells)
     score = abs(math.log(res.achieved_ratio) - math.log(2.0))
@@ -46,7 +46,7 @@ def test_joint_allocator_hits_budget_2x() -> None:
 
 
 def test_joint_allocator_hits_budget_4x() -> None:
-    cells = _cells()
+    cells = make_cells()
     alloc = JointAllocator(target_ratio=4.0)
     res = alloc.optimize(cells)
     score = abs(math.log(res.achieved_ratio) - math.log(4.0))
@@ -55,7 +55,7 @@ def test_joint_allocator_hits_budget_4x() -> None:
 
 def test_allocator_uses_residual_at_higher_ratio() -> None:
     """At higher ratios, allocator should prefer more residual bits."""
-    cells = _cells()
+    cells = make_cells()
     res_low = JointAllocator(target_ratio=2.0).optimize(cells)
     res_high = JointAllocator(target_ratio=8.0).optimize(cells)
     bits_low = sum(a.bits for a in res_low.allocations)
@@ -67,7 +67,7 @@ def test_allocator_uses_residual_at_higher_ratio() -> None:
 
 def test_allocator_keys_values_split() -> None:
     """Allocator should return one allocation per cell."""
-    cells = _cells()
+    cells = make_cells()
     res = JointAllocator(target_ratio=3.0).optimize(cells)
     a_k, a_v = res.allocations
     # Just structural — the allocator decides freely.
@@ -76,7 +76,7 @@ def test_allocator_keys_values_split() -> None:
 
 
 def test_greedy_runs() -> None:
-    cells = _cells()
+    cells = make_cells()
     g = GreedyAllocator(target_ratio=3.0)
     res = g.optimize(cells)
     assert res.total_bytes > 0
@@ -114,7 +114,7 @@ def test_allocator_per_cell_grid_finite() -> None:
 
 def test_allocator_lambda_monotone() -> None:
     """Higher λ should produce lower total cost (monotone)."""
-    cells = _cells()
+    cells = make_cells()
     alloc = JointAllocator(target_ratio=3.0)
     grid = [alloc.build_cell_grid(c, None, i) for i, c in enumerate(cells)]
     cost_low = sum(a.cost_bytes for a in alloc.argmin_per_cell(grid, 0.0))
@@ -123,7 +123,7 @@ def test_allocator_lambda_monotone() -> None:
 
 
 def test_allocator_achieves_target_within_rounding() -> None:
-    cells = _cells()
+    cells = make_cells()
     for ratio in [2.0, 3.0, 4.0, 5.0, 8.0]:
         res = JointAllocator(target_ratio=ratio).optimize(cells)
         # Discrete grid; log-space ratio distance to target ≤ 1.0 nat.

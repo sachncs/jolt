@@ -15,7 +15,7 @@ has a place to dispatch to.
 ## 1. Write the shim
 
 ```python
-# src/kvcompress/adapters/my_family.py
+# kvcompress/adapters/my_family.py
 from __future__ import annotations
 
 from typing import Any
@@ -46,7 +46,7 @@ def install(model, cache_manager):
 ## 2. Register
 
 ```python
-# src/kvcompress/adapters/registry.py
+# kvcompress/adapters/registry.py
 _REGISTRY: dict[str, str] = {
     ...
     "my-family": "kvcompress.adapters.my_family",

@@ -7,7 +7,7 @@ quantizer, or a hybrid method.
 ## 1. Subclass `KVCompressor`
 
 ```python
-# src/kvcompress/compressor/my_method.py
+# kvcompress/compressor/my_method.py
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -88,7 +88,7 @@ class MyMethodCompressor(KVCompressor):
 ## 2. Wire into the dispatch
 
 ```python
-# src/kvcompress/adapters/huggingface.py
+# kvcompress/adapters/huggingface.py
 def _build_compressor(method: str, **kwargs: Any) -> KVCompressor:
     method = method.lower()
     if method == "my-method":
@@ -100,7 +100,7 @@ def _build_compressor(method: str, **kwargs: Any) -> KVCompressor:
 ## 3. Export from the package
 
 ```python
-# src/kvcompress/__init__.py
+# kvcompress/__init__.py
 _LAZY_EXPORTS = {
     ...
     "MyMethodCompressor": ("kvcompress.compressor.my_method", "MyMethodCompressor"),
@@ -110,7 +110,7 @@ _LAZY_EXPORTS = {
 ## 4. Add a CLI alias (optional)
 
 ```python
-# src/kvcompress/api.py
+# kvcompress/api.py
 MethodName = Literal[
     "jolt", "flashjolt", "lowrank",
     "int2", "int4", "int8",

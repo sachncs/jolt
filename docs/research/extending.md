@@ -19,7 +19,7 @@ t-SVD and TT are dominated.
 If you want to plug in another format:
 
 ```python
-# src/kvcompress/compressor/tsvd.py
+# kvcompress/compressor/tsvd.py
 from kvcompress.compressor.base import KVCompressor, CompressedPayload
 import torch
 

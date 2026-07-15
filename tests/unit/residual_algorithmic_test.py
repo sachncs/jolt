@@ -119,7 +119,7 @@ def test_residual_decode_preserves_norm_within_quantisation_error(
     dec_norm = torch.linalg.norm(decoded).item()
     # The cheap inverse is "x @ Π" (not "x @ Π⁻¹") so the recovered
     # residual's norm is bounded by the projection's operator norm,
-    # which is ≤ ‖Π‖_F. We just check that the recovered norm is
+    # which is ≤ ‖Π‖F. We just check that the recovered norm is
     # non-zero and within the same order of magnitude as the source.
     assert dec_norm > 0
     assert dec_norm < src_norm * 5, f"dec_norm {dec_norm} not within 5x of src_norm {src_norm}"

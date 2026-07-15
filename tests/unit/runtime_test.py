@@ -70,7 +70,7 @@ def test_profiler_aggregate() -> None:
 
 def test_profiler_disabled() -> None:
     p = CompressionProfiler()
-    p._enabled = False
+    p.enabled = False
     with p.record("op"):
         pass
     assert len(p.records) == 0

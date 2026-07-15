@@ -8,7 +8,7 @@ We follow [Semantic Versioning](https://semver.org/):
 - **Minor** (0.X.0): new features, backward-compatible.
 - **Patch** (0.0.X): bug fixes.
 
-The current version is in `src/kvcompress/__init__.py`:
+The current version is in `kvcompress/__init__.py`:
 
 ```python
 __version__ = "0.1.0"

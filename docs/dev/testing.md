@@ -13,7 +13,7 @@
   `test_<integration_target>.py` for integration tests.
 - One assertion concept per test.
 - Mark slow / integration / GPU tests with `@pytest.mark.<marker>`.
-- Coverage of `src/kvcompress/` is targeted at ≥ 95%.
+- Coverage of `kvcompress/` is targeted at ≥ 95%.
 
 ## Running
 

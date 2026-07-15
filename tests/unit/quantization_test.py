@@ -27,7 +27,7 @@ def test_int_symmetric_roundtrip(tensor: torch.Tensor, bits: int) -> None:
     x_hat = q.dequantize(packed, scale, zp, output_dtype=torch.float32)
     err = (tensor - x_hat).abs().max().item()
     # Half a bin in the worst case.
-    bin_size = (tensor.abs().amax() / q._qmax).item()
+    bin_size = (tensor.abs().amax() / q.qmax).item()
     assert err <= bin_size + 1e-3
 
 
@@ -38,7 +38,7 @@ def test_int_asymmetric_roundtrip(tensor: torch.Tensor, bits: int) -> None:
     x_hat = q.dequantize(packed, scale, zp, output_dtype=torch.float32)
     err = (tensor - x_hat).abs().max().item()
     rng = (tensor.amax() - tensor.amin()).item()
-    bin_size = rng / (q._qmax - q._qmin)
+    bin_size = rng / (q.qmax - q.qmin)
     assert err <= bin_size + 1e-3
 
 

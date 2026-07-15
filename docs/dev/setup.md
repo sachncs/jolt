@@ -45,7 +45,7 @@ These three are also run by GitHub Actions on every push.
 ## Project layout
 
 ```
-src/kvcompress/
+kvcompress/
 ├── api.py                    # enable_compression + CompressionHandle
 ├── cli.py                    # Typer app
 ├── compressor/

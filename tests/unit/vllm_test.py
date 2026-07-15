@@ -9,7 +9,7 @@ import pytest
 import torch
 
 
-class _FakeDynamicLayer:
+class FakeDynamicLayer:
     """Stand-in for transformers.cache_utils.DynamicLayer."""
 
     def __init__(self, keys: torch.Tensor, values: torch.Tensor) -> None:
@@ -17,28 +17,28 @@ class _FakeDynamicLayer:
         self.values = values
 
 
-class _FakeDynamicCache:
+class FakeDynamicCache:
     """Stand-in for transformers.cache_utils.DynamicCache.
 
     Exposes ``.layers[i].keys`` and ``.layers[i].values`` like the real one.
     """
 
-    def __init__(self, layers: list[_FakeDynamicLayer]) -> None:
+    def __init__(self, layers: list[FakeDynamicLayer]) -> None:
         self.layers = layers
-        self._updates: list[tuple[int, torch.Tensor, torch.Tensor]] = []
+        self.updates: list[tuple[int, torch.Tensor, torch.Tensor]] = []
 
     def update(self, k: torch.Tensor, v: torch.Tensor, layer_idx: int, cache_kwargs=None):
-        self._updates.append((layer_idx, k, v))
+        self.updates.append((layer_idx, k, v))
         # Patch the layer in place (matches HF behaviour).
         self.layers[layer_idx].keys = k
         self.layers[layer_idx].values = v
         return k, v
 
 
-class _FakeModel:
+class FakeModel:
     """Minimal HF-style model with a past_key_values cache."""
 
-    def __init__(self, cache: _FakeDynamicCache) -> None:
+    def __init__(self, cache: FakeDynamicCache) -> None:
         self.past_key_values = cache
 
 
@@ -49,9 +49,9 @@ def fake_model() -> Any:
     for _ in range(3):
         k = torch.randn(2, 8, 16)
         v = torch.randn(2, 8, 16)
-        layers.append(_FakeDynamicLayer(k, v))
-    cache = _FakeDynamicCache(layers)
-    return _FakeModel(cache)
+        layers.append(FakeDynamicLayer(k, v))
+    cache = FakeDynamicCache(layers)
+    return FakeModel(cache)
 
 
 def test_export_writes_safetensors(fake_model: Any, tmp_path: Path) -> None:
@@ -99,11 +99,11 @@ def test_export_uses_passed_compressor(fake_model: Any, tmp_path: Path) -> None:
 def test_export_requires_cache() -> None:
     from kvcompress.adapters.vllm import export_kv
 
-    class _Bare:
+    class Bare:
         pass
 
     with pytest.raises(RuntimeError, match="could not locate"):
-        export_kv(_Bare(), "/tmp/should-not-write.safetensors")
+        export_kv(Bare(), "/tmp/should-not-write.safetensors")
 
 
 def test_is_vllm_available_returns_bool() -> None:

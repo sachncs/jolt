@@ -45,16 +45,16 @@ def test_resolve_returns_none_for_unknown_family() -> None:
 
 def test_register_adds_new_family() -> None:
     original = registry.known_model_types()
-    original_set = set(registry._REGISTRY)
+    original_set = set(registry.REGISTRY)
     try:
         registry.register("test-family-xyz", "kvcompress.adapters.llama")
         assert "test-family-xyz" in registry.known_model_types()
         assert registry.resolve("test-family-xyz") == "kvcompress.adapters.llama"
     finally:
         # Restore registry by removing any keys we added.
-        for k in list(registry._REGISTRY):
+        for k in list(registry.REGISTRY):
             if k not in original_set:
-                del registry._REGISTRY[k]
+                del registry.REGISTRY[k]
         assert registry.known_model_types() == original
 
 

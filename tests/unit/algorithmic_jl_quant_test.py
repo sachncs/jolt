@@ -27,7 +27,7 @@ from kvcompress.compressor.quantization import (
 
 
 @pytest.fixture(autouse=True)
-def _clear_cache() -> None:
+def clear_cache() -> None:
     clear_projection_cache()
 
 
@@ -113,7 +113,7 @@ def test_quant_error_bounded_by_one_bin() -> None:
         packed, scale, zp = q.quantize(x)
         x_hat = q.dequantize(packed, scale, zp, output_dtype=torch.float32)
         # Per-channel bin size.
-        bin_size = (x.abs().amax(dim=0) / q._qmax).clamp(min=1e-9)
+        bin_size = (x.abs().amax(dim=0) / q.qmax).clamp(min=1e-9)
         per_channel_err = (x - x_hat).abs().amax(dim=0)
         # Each channel's max error is at most half a bin (rounding) plus
         # fp32 noise.
@@ -133,7 +133,7 @@ def test_quant_error_bounded_by_one_bin_asymmetric() -> None:
         x_hat = q.dequantize(packed, scale, zp, output_dtype=torch.float32)
         # Bin size = (xmax - xmin) / (qmax - qmin).
         rng = (x.amax(dim=0) - x.amin(dim=0)).clamp(min=1e-9)
-        bin_size = rng / (q._qmax - q._qmin)
+        bin_size = rng / (q.qmax - q.qmin)
         per_channel_err = (x - x_hat).abs().amax(dim=0)
         assert (
             per_channel_err <= bin_size + 1e-3
