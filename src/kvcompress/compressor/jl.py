@@ -128,13 +128,9 @@ def rademacher_projection(
     gen = torch.Generator(device="cpu")
     gen.manual_seed(int(seed))
     if sparsity == 1.0:
-        m = (torch.randint(0, 2, (output_dim, input_dim), generator=gen) * 2 - 1).to(
-            torch.float32
-        )
+        m = (torch.randint(0, 2, (output_dim, input_dim), generator=gen) * 2 - 1).to(torch.float32)
     else:
-        mask = (torch.rand(output_dim, input_dim, generator=gen) < sparsity).to(
-            torch.float32
-        )
+        mask = (torch.rand(output_dim, input_dim, generator=gen) < sparsity).to(torch.float32)
         signs = (torch.randint(0, 2, (output_dim, input_dim), generator=gen) * 2 - 1).to(
             torch.float32
         )
@@ -182,9 +178,7 @@ def cached_projection(
     proj = _PROJECTION_CACHE.get(key)
     if proj is None:
         if distribution == "gaussian":
-            proj = gaussian_projection(
-                output_dim, input_dim, seed=seed, device=device, dtype=dtype
-            )
+            proj = gaussian_projection(output_dim, input_dim, seed=seed, device=device, dtype=dtype)
         elif distribution == "rademacher":
             proj = rademacher_projection(
                 output_dim,

@@ -131,9 +131,7 @@ def enable_compression(
             provided, or if both are provided.
     """
     if (target_memory is None) == (compression_ratio is None):
-        raise ValueError(
-            "Exactly one of `target_memory` or `compression_ratio` must be provided."
-        )
+        raise ValueError("Exactly one of `target_memory` or `compression_ratio` must be provided.")
 
     if target_memory is not None:
         compression_ratio = _parse_target_memory(target_memory)
@@ -160,7 +158,8 @@ def enable_compression(
         **kwargs,
     )
     handle = CompressionHandle(adapter=adapter, model=model)
-    adapter._stats = handle.stats
+    # Wire the stats object so the patched DynamicCache can update it.
+    adapter._stats = handle.stats  # type: ignore[assignment]
     adapter.enable()
     return handle
 

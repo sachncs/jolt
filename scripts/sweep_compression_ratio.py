@@ -14,9 +14,7 @@ log = logging.getLogger(__name__)
 def main() -> None:
     parser = argparse.ArgumentParser(description="Sweep compression ratios")
     parser.add_argument("--model", type=str, default="gpt2")
-    parser.add_argument(
-        "--ratios", type=float, nargs="+", default=[1.5, 2.0, 3.0, 4.0]
-    )
+    parser.add_argument("--ratios", type=float, nargs="+", default=[1.5, 2.0, 3.0, 4.0])
     parser.add_argument("--max-new", type=int, default=20)
     parser.add_argument("--prompt-tokens", type=int, default=64)
     args = parser.parse_args()
@@ -51,9 +49,7 @@ def main() -> None:
                     elapsed = (time.perf_counter() - t0) * 1000
                 tokens = out.shape[1] - prompt_ids.shape[1]
                 ms_per_tok = elapsed / max(1, tokens)
-                print(
-                    f"{method:<10} {ratio:>8.2f} {tokens:>10} {ms_per_tok:>9.2f}"
-                )
+                print(f"{method:<10} {ratio:>8.2f} {tokens:>10} {ms_per_tok:>9.2f}")
             finally:
                 handle.disable()
 

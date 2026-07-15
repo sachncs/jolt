@@ -147,9 +147,7 @@ class CompressedKVCache:
 
     def evict_layer(self, layer: int) -> None:
         self._entries.pop(layer, None)
-        self._metadata.layers = [
-            l for l in self._metadata.layers if l.layer != layer
-        ]
+        self._metadata.layers = [entry for entry in self._metadata.layers if entry.layer != layer]
 
     # ------------------------------------------------------------------
     # Memory accounting
@@ -209,10 +207,10 @@ class CompressedKVCache:
         if self._max_layers is None:
             return
         while len(self._entries) > self._max_layers:
-            evicted_layer, evicted_entry = self._entries.popitem(last=False)
+            evicted_layer, _ = self._entries.popitem(last=False)
             log.debug("evicted layer %d (cache cap %d)", evicted_layer, self._max_layers)
             self._metadata.layers = [
-                l for l in self._metadata.layers if l.layer != evicted_layer
+                entry for entry in self._metadata.layers if entry.layer != evicted_layer
             ]
 
 

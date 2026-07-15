@@ -6,11 +6,11 @@ are still stubbed out.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any  # noqa: F401
 
-if TYPE_CHECKING:
-    from kvcompress.runtime.memory import MemoryPool
-    from kvcompress.runtime.profiler import CompressionProfiler
+if False:  # TYPE_CHECKING
+    from kvcompress.runtime.memory import MemoryPool  # noqa: F401
+    from kvcompress.runtime.profiler import CompressionProfiler  # noqa: F401
 
 _LAZY_EXPORTS = {
     "MemoryPool": ("kvcompress.runtime.memory", "MemoryPool"),

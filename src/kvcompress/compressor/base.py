@@ -81,7 +81,7 @@ class CompressedPayload:
     """
 
     method: str
-    shape: tuple[int, int, int]
+    shape: tuple[int, ...] | torch.Size
     dtype: torch.dtype
     metadata: dict[str, Any]
     data: dict[str, Any]

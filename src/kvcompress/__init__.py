@@ -17,7 +17,7 @@ are still stubbed out during incremental development.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any  # noqa: F401
 
 __version__ = "0.1.0"
 

@@ -33,7 +33,6 @@ import math
 from dataclasses import dataclass, field
 from typing import Sequence
 
-import torch
 
 log = logging.getLogger(__name__)
 
@@ -258,7 +257,6 @@ class JointAllocator:
             if score_mid < candidates[0][0]:
                 best_cand = cand_mid
                 best_lam = (lo + hi) / 2
-                best_total = cost_mid
 
         return self._make_result(best_cand, original_per_cell, target_bytes, best_lam)
 
@@ -423,9 +421,7 @@ class GreedyAllocator:
             rT = min(t, self.max_token_rank)
             rD = d
             cost = (m * rT * rD + t * rT + d * rD) * self.factor_dtype_bytes
-            current.append(
-                Allocation(r_token=rT, r_feature=rD, bits=0, cost_bytes=cost, error=0.0)
-            )
+            current.append(Allocation(r_token=rT, r_feature=rD, bits=0, cost_bytes=cost, error=0.0))
 
         def total_cost() -> int:
             return sum(a.cost_bytes for a in current)
@@ -438,7 +434,6 @@ class GreedyAllocator:
                 m, t, d = cell.shape
                 a = current[i]
                 # Try doubling bits, increasing ranks one at a time.
-                candidates: list[Allocation] = []
                 if a.bits < max(self.bits_grid):
                     next_b = next(b for b in self.bits_grid if b > a.bits)
                     added = (next_b // 8) * m * t * d
@@ -462,8 +457,7 @@ class GreedyAllocator:
             if best_idx < 0:
                 break  # cannot improve
             # Apply the best change.
-            cell = cells[best_idx]
-            m, t, d = cell.shape
+            m, t, d = cells[best_idx].shape
             a = current[best_idx]
             if a.bits < max(self.bits_grid):
                 next_b = next(b for b in self.bits_grid if b > a.bits)
@@ -478,6 +472,7 @@ class GreedyAllocator:
                 current[best_idx] = Allocation(
                     r_token=a.r_token,
                     r_feature=a.r_feature + 1,
+                    bits=a.bits,
                     cost_bytes=a.cost_bytes + (m * a.r_token + d) * self.factor_dtype_bytes,
                     error=0.001,
                 )
@@ -485,6 +480,7 @@ class GreedyAllocator:
                 current[best_idx] = Allocation(
                     r_token=a.r_token + 1,
                     r_feature=a.r_feature,
+                    bits=a.bits,
                     cost_bytes=a.cost_bytes + (m * a.r_feature + t) * self.factor_dtype_bytes,
                     error=0.0005,
                 )
@@ -521,9 +517,7 @@ def _candidate_feature_ranks(d: int) -> list[int]:
     """
     if d <= 32:
         return list(range(1, d + 1))
-    candidates = sorted(
-        {1, 2, 4, 8, 16, 32, 64, 96, 128, 192, 256, d}
-    )
+    candidates = sorted({1, 2, 4, 8, 16, 32, 64, 96, 128, 192, 256, d})
     return [c for c in candidates if c <= d]
 
 
@@ -532,9 +526,7 @@ def _candidate_token_ranks(t_max: int) -> list[int]:
     if t_max <= 32:
         return list(range(1, t_max + 1))
     base = list(range(1, 33))
-    extras = sorted(
-        {48, 64, 96, 128, 192, 256, 384, 512, t_max}
-    )
+    extras = sorted({48, 64, 96, 128, 192, 256, 384, 512, t_max})
     return base + [e for e in extras if e <= t_max]
 
 

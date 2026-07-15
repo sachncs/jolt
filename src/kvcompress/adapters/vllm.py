@@ -63,8 +63,7 @@ def install(
     """
     if not is_vllm_available():
         raise ImportError(
-            "vLLM is not installed. Install it with `pip install vllm` to use "
-            "this adapter."
+            "vLLM is not installed. Install it with `pip install vllm` to use this adapter."
         )
 
     from kvcompress.adapters.huggingface import _build_compressor

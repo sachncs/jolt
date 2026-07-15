@@ -37,7 +37,11 @@ def plot_memory_sweep(rows: list[dict[str, Any]], output_path: str | Path) -> No
     for i, m in enumerate(methods):
         ys = [
             next(
-                (r["bytes_compressed"] for r in rows if r["method"] == m and r["ratio_target"] == r_target),
+                (
+                    r["bytes_compressed"]
+                    for r in rows
+                    if r["method"] == m and r["ratio_target"] == r_target
+                ),
                 0,
             )
             for r_target in ratios

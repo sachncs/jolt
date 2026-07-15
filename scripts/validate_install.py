@@ -12,8 +12,7 @@ log = logging.getLogger(__name__)
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Validate install")
-    args = parser.parse_args()
+    _ = argparse.ArgumentParser(description="Validate install").parse_args()
 
     log.info("kvcompress validate: starting smoke test")
     import kvcompress
@@ -36,7 +35,10 @@ def main() -> None:
     fj = FlashJoLTCompressor(compression_ratio=2.0)
     kp, vp = fj.compress(K, V)
     k_hat, v_hat = fj.decompress(kp, vp)
-    log.info("FlashJoLT round-trip rel error: %.4f", float(torch.linalg.norm(K - k_hat) / torch.linalg.norm(K)))
+    log.info(
+        "FlashJoLT round-trip rel error: %.4f",
+        float(torch.linalg.norm(K - k_hat) / torch.linalg.norm(K)),
+    )
 
     # 3. HF adapter smoke test.
     try:

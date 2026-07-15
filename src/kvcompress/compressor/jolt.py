@@ -35,7 +35,6 @@ from kvcompress.compressor.residual import (
     ResidualPayload,
     decode_residual,
     encode_residual,
-    estimate_residual_bytes,
 )
 from kvcompress.compressor.svd import SVD
 from kvcompress.compressor.tucker import (
@@ -130,9 +129,7 @@ class JoLTCompressor(KVCompressor):
         if key.shape != value.shape:
             raise ValueError(f"K/V shape mismatch: {key.shape} vs {value.shape}")
         if key.dim() != 3:
-            raise ValueError(
-                f"JoLT expects 3-D (m, T, dh); got {tuple(key.shape)}"
-            )
+            raise ValueError(f"JoLT expects 3-D (m, T, dh); got {tuple(key.shape)}")
 
         t0 = time.perf_counter()
         m, t, d = key.shape
@@ -313,7 +310,7 @@ class JoLTCompressor(KVCompressor):
                 token_tail_mass=float(payload.metadata.get("tail_token_mass", 0.0)),
                 feature_tail_mass=float(payload.metadata.get("tail_feature_mass", 0.0)),
             ),
-            target_shape=payload.shape,
+            target_shape=payload.shape,  # type: ignore[arg-type]
         )
 
         # Add residual if present.

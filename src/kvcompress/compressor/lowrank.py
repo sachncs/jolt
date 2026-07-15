@@ -104,7 +104,7 @@ class LowRankCompressor(KVCompressor):
         flat = (u * s) @ vh
         m = int(payload.metadata["m"])
         T = int(payload.metadata["T"])
-        return flat.reshape(m, T, -1).to(payload.dtype)
+        return flat.reshape(m, T, -1).to(payload.dtype)  # type: ignore[no-any-return]
 
 
 __all__ = ["LowRankCompressor"]

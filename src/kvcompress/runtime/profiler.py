@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import logging
 import time
-from collections import defaultdict
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any
@@ -54,14 +53,18 @@ class CompressionProfiler:
         finally:
             elapsed_ms = (time.perf_counter() - t0) * 1000
             self.records.append(
-                _CallRecord(name=name, duration_ms=elapsed_ms, bytes_in=bytes_in, bytes_out=bytes_out)
+                _CallRecord(
+                    name=name, duration_ms=elapsed_ms, bytes_in=bytes_in, bytes_out=bytes_out
+                )
             )
 
     def summary(self) -> dict[str, dict[str, Any]]:
         """Aggregate records by name."""
         out: dict[str, dict[str, Any]] = {}
         for r in self.records:
-            agg = out.setdefault(r.name, {"count": 0, "total_ms": 0.0, "bytes_in": 0, "bytes_out": 0})
+            agg = out.setdefault(
+                r.name, {"count": 0, "total_ms": 0.0, "bytes_in": 0, "bytes_out": 0}
+            )
             agg["count"] += 1
             agg["total_ms"] += r.duration_ms
             agg["bytes_in"] += r.bytes_in

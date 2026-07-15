@@ -48,7 +48,7 @@ def register(model_type: str, module_path: str) -> None:
     _REGISTRY[model_type] = module_path
 
 
-def install(model: object, cache_manager: object, model_type: str) -> Callable[[], None]:
+def install(model: object, cache_manager: object, model_type: str) -> Callable[[], None] | None:
     """Dispatch to the right family shim.
 
     Returns the shim's ``install`` callable so the caller can invoke it.
@@ -61,7 +61,8 @@ def install(model: object, cache_manager: object, model_type: str) -> Callable[[
         )
         from kvcompress.adapters.huggingface import _generic_install
 
-        return _generic_install(model, cache_manager)
+        _generic_install(model, cache_manager)
+        return None
     import importlib
 
     module = importlib.import_module(module_path)

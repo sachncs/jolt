@@ -24,7 +24,7 @@ def _try_compile():
     Returns the compiled kernel if Triton is available; ``None`` otherwise.
     """
     try:
-        import torch
+        import torch  # noqa: F401
         import triton
         import triton.language as tl
     except ImportError:
@@ -80,10 +80,10 @@ def _try_compile():
 
 
 def triton_tucker_reconstruct(
-    core: "torch.Tensor",
-    u_token: "torch.Tensor",
-    u_feature: "torch.Tensor",
-) -> "torch.Tensor":
+    core,
+    u_token,
+    u_feature,
+):
     """Run the Triton Tucker reconstruction if available."""
     import torch
 

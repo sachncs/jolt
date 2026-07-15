@@ -86,23 +86,23 @@ class CompressionMetadata:
     extras: dict[str, Any] = field(default_factory=dict)
 
     def layer(self, idx: int) -> LayerCompression:
-        for l in self.layers:
-            if l.layer == idx:
-                return l
+        for entry in self.layers:
+            if entry.layer == idx:
+                return entry
         raise KeyError(f"no metadata for layer {idx}")
 
     def add_layer(self, entry: LayerCompression) -> None:
-        for i, l in enumerate(self.layers):
-            if l.layer == entry.layer and l.kind == entry.kind:
+        for i, existing in enumerate(self.layers):
+            if existing.layer == entry.layer and existing.kind == entry.kind:
                 self.layers[i] = entry
                 return
         self.layers.append(entry)
 
     def bytes_original(self) -> int:
-        return sum(l.bytes_original for l in self.layers)
+        return sum(entry.bytes_original for entry in self.layers)
 
     def bytes_compressed(self) -> int:
-        return sum(l.bytes_compressed for l in self.layers)
+        return sum(entry.bytes_compressed for entry in self.layers)
 
     def compression_ratio(self) -> float:
         o = self.bytes_original()
@@ -113,7 +113,7 @@ class CompressionMetadata:
         return {
             "method": self.method,
             "dtype": self.dtype,
-            "layers": [l.to_dict() for l in self.layers],
+            "layers": [entry.to_dict() for entry in self.layers],
             "layer_groups": self.layer_groups,
             "bits_allowed": list(self.bits_allowed),
             "extras": self.extras,

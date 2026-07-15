@@ -8,8 +8,6 @@ Provides:
 
 These are *no-op fallbacks* on systems without ``triton``; the public
 functions in :mod:`kvcompress.compressor` always go through PyTorch.
-The Triton paths are exercised when ``triton`` is installed and the
-hardware supports it (NVIDIA GPU).
 """
 
 from __future__ import annotations
@@ -30,44 +28,28 @@ def is_triton_available() -> bool:
 
 
 def tucker_reconstruct(
-    core: "torch.Tensor",
-    u_token: "torch.Tensor",
-    u_feature: "torch.Tensor",
-) -> "torch.Tensor":
+    core,
+    u_token,
+    u_feature,
+):
     """Fused Tucker reconstruction.
 
     Falls back to PyTorch einsum when Triton is unavailable.
     """
-    if not is_triton_available():
-        import torch
-
-        return torch.einsum("mar,ta,dr->mtd", core, u_token, u_feature)
-    log.debug("tucker_reconstruct: Triton path not implemented, using PyTorch")
     import torch
 
     return torch.einsum("mar,ta,dr->mtd", core, u_token, u_feature)
 
 
-def jl_project(x: "torch.Tensor", matrix: "torch.Tensor") -> "torch.Tensor":
+def jl_project(x, matrix):
     """JL projection via dense matmul."""
-    if not is_triton_available():
-        import torch
-
-        return x @ matrix.t()
-    log.debug("jl_project: Triton path not implemented, using PyTorch")
-    import torch
+    import torch  # noqa: F401
 
     return x @ matrix.t()
 
 
-def quantize_int8(x: "torch.Tensor") -> tuple["torch.Tensor", "torch.Tensor", "torch.Tensor"]:
+def quantize_int8(x):
     """Per-channel int8 quantization (Triton when available)."""
-    if not is_triton_available():
-        from kvcompress.compressor.quantization import IntQuantizer
-
-        q = IntQuantizer(bits=8, symmetric=True, per_channel=True)
-        return q.quantize(x)
-    log.debug("quantize_int8: Triton path not implemented, using PyTorch")
     from kvcompress.compressor.quantization import IntQuantizer
 
     q = IntQuantizer(bits=8, symmetric=True, per_channel=True)

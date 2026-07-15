@@ -22,9 +22,7 @@ def main() -> None:
     parser.add_argument("--output", type=str, default=None)
     args = parser.parse_args()
 
-    rows = run_speed_sweep(
-        m=args.m, T=args.T, dh=args.dh, ratio=args.ratio, seed=args.seed
-    )
+    rows = run_speed_sweep(m=args.m, T=args.T, dh=args.dh, ratio=args.ratio, seed=args.seed)
 
     print(f"{'method':<14} {'compress_ms':>14} {'decompress_ms':>14} {'ratio':>10}")
     print("-" * 60)

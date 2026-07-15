@@ -26,9 +26,7 @@ def main() -> None:
     parser.add_argument("--output", type=str, default=None)
     args = parser.parse_args()
 
-    rows = run_table2(
-        m=args.m, T=args.T, dh=args.dh, seed=args.seed, compression_ratio=args.ratio
-    )
+    rows = run_table2(m=args.m, T=args.T, dh=args.dh, seed=args.seed, compression_ratio=args.ratio)
 
     print(f"{'method':<24} {'K error':>10} {'V error':>10} {'ratio':>10}")
     print("-" * 60)

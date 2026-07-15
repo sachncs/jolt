@@ -50,6 +50,7 @@ def run_memory_sweep(
 
     for method in methods:
         for ratio in ratios:
+            comp = None
             if method == "jolt":
                 comp = JoLTCompressor(compression_ratio=ratio)
             elif method == "flashjolt":

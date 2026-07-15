@@ -26,7 +26,6 @@ import torch
 from kvcompress.compressor.jl import JLDistribution, cached_projection
 from kvcompress.compressor.quantization import (
     dequantize_tensor,
-    get_quantizer,
     quantize_tensor,
 )
 
@@ -64,7 +63,7 @@ class ResidualPayload:
     packed: torch.Tensor
     scale: torch.Tensor
     zero_point: torch.Tensor
-    original_shape: tuple[int, int, int]
+    original_shape: tuple[int, ...]
     original_last: int
 
     @property
@@ -99,18 +98,18 @@ class ResidualPayload:
     @classmethod
     def from_dict(cls, d: dict[str, object]) -> "ResidualPayload":
         return cls(
-            projection_seed=int(d["projection_seed"]),
+            projection_seed=int(d["projection_seed"]),  # type: ignore[arg-type,call-overload]
             projection_distribution=d["projection_distribution"],  # type: ignore[arg-type]
-            projection_sparsity=float(d["projection_sparsity"]),
-            quant_dtype=str(d["quant_dtype"]),
-            symmetric=bool(d["symmetric"]),
-            per_channel=bool(d["per_channel"]),
+            projection_sparsity=float(d["projection_sparsity"]),  # type: ignore[arg-type]
+            quant_dtype=str(d["quant_dtype"]),  # type: ignore[arg-type]
+            symmetric=bool(d["symmetric"]),  # type: ignore[arg-type]
+            per_channel=bool(d["per_channel"]),  # type: ignore[arg-type]
             group_size=d.get("group_size"),  # type: ignore[arg-type]
             packed=d["packed"],  # type: ignore[arg-type]
             scale=d["scale"],  # type: ignore[arg-type]
             zero_point=d["zero_point"],  # type: ignore[arg-type]
             original_shape=tuple(d["original_shape"]),  # type: ignore[arg-type]
-            original_last=int(d["original_last"]),
+            original_last=int(d["original_last"]),  # type: ignore[arg-type,call-overload]
         )
 
 

@@ -6,20 +6,20 @@ can be imported even when individual modules are still stubbed out.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any  # noqa: F401
 
-if TYPE_CHECKING:
-    from kvcompress.compressor.allocator import (
+if False:  # TYPE_CHECKING
+    from kvcompress.compressor.allocator import (  # noqa: F401
         Allocation,
         Cell,
         JointAllocator,
     )
-    from kvcompress.compressor.base import (
+    from kvcompress.compressor.base import (  # noqa: F401
         CompressorStats,
         KVCompressor,
     )
-    from kvcompress.compressor.flashjolt import FlashJoLTCompressor
-    from kvcompress.compressor.jolt import JoLTCompressor
+    from kvcompress.compressor.flashjolt import FlashJoLTCompressor  # noqa: F401
+    from kvcompress.compressor.jolt import JoLTCompressor  # noqa: F401
 
 _LAZY_EXPORTS = {
     "Allocation": ("kvcompress.compressor.allocator", "Allocation"),

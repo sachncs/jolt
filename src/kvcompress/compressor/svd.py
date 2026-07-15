@@ -186,8 +186,8 @@ class SVD:
         m, n = a.shape
         max_rank = min(m, n)
         rank = max(1, min(int(rank), max_rank))
-        l = self.oversampling
-        k = rank + l
+        sketch_extra = self.oversampling
+        k = rank + sketch_extra
         if cap is not None:
             k = min(k, int(cap))
         k = max(k, rank + 1)
@@ -236,7 +236,7 @@ class SVD:
         log.debug(
             "SVD.randomise: rank=%d oversampling=%d n_power=%d tail_mass=%.4e",
             rank,
-            l,
+            self.oversampling,
             self.n_power,
             tail_mass,
         )

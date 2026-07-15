@@ -105,7 +105,7 @@ def mode_n_fold(mat: torch.Tensor, mode: int, shape: tuple[int, int, int]) -> to
 
 def reconstruct_partial_tucker(
     factors: TuckerFactors,
-    target_shape: tuple[int, int, int],
+    target_shape: tuple[int, int, int] | torch.Size,
 ) -> torch.Tensor:
     """Reconstruct ``X̂`` from partial Tucker factors.
 
@@ -116,20 +116,14 @@ def reconstruct_partial_tucker(
     Returns:
         Tensor of shape ``target_shape`` approximating the original input.
     """
-    m, t, d = target_shape
+    m, t, d = tuple(target_shape)
     rt, rd = factors.r_token, factors.r_feature
     if factors.core.shape != (m, rt, rd):
-        raise ValueError(
-            f"core shape {factors.core.shape} != expected {(m, rt, rd)}"
-        )
+        raise ValueError(f"core shape {factors.core.shape} != expected {(m, rt, rd)}")
     if factors.u_token.shape != (t, rt):
-        raise ValueError(
-            f"u_token shape {factors.u_token.shape} != expected {(t, rt)}"
-        )
+        raise ValueError(f"u_token shape {factors.u_token.shape} != expected {(t, rt)}")
     if factors.u_feature.shape != (d, rd):
-        raise ValueError(
-            f"u_feature shape {factors.u_feature.shape} != expected {(d, rd)}"
-        )
+        raise ValueError(f"u_feature shape {factors.u_feature.shape} != expected {(d, rd)}")
     # X̂[m, t, d] = sum_{rt, rd} core[m, rt, rd] * U_T[t, rt] * U_d[d, rd]
     # Index labels: m/t/d are actual axes, a = rT (token rank), r = rd (feature
     # rank). Einsum contracts over the rank labels a and r.
@@ -242,12 +236,14 @@ def estimate_token_rank_for_budget(
     """
     m, t, d = x.shape
     rd = min(int(feature_rank) if feature_rank else d, d)
+
     # Cost: m*rT*rd + T*rT + d*rd  (in scalars; multiply by dtype_bytes) +
     # (bits/8) * m * T * d  for the residual.
     def cost(rt: int) -> int:
         scalars = m * rt * rd + t * rt + d * rd
         residual = (bits_residual // 8) * m * t * d
         return scalars * dtype_bytes + residual
+
     rt = t
     while rt > 1 and cost(rt) > budget:
         rt -= 1

@@ -20,7 +20,6 @@ from typing import Any
 import torch
 
 from kvcompress.adapters.registry import install as registry_install
-from kvcompress.cache.compress import CompressedKVCache
 from kvcompress.cache.manager import CacheManager
 from kvcompress.compressor.base import KVCompressor
 from kvcompress.compressor.flashjolt import FlashJoLTCompressor
@@ -130,9 +129,7 @@ class HuggingFaceAdapter:
                     model=self.model,
                     cache_manager=self._manager,
                 )
-                log.info(
-                    "kvcompress: installed family shim for %s", model_type
-                )
+                log.info("kvcompress: installed family shim for %s", model_type)
             except Exception as e:  # pragma: no cover
                 log.warning("kvcompress: family install failed: %s", e)
 
@@ -141,10 +138,11 @@ class HuggingFaceAdapter:
     def disable(self) -> None:
         if not self._enabled:
             return
-        if hasattr(self.model, "generation_config") and self._original_cache_implementation is not None:
-            self.model.generation_config.cache_implementation = (
-                self._original_cache_implementation
-            )
+        if (
+            hasattr(self.model, "generation_config")
+            and self._original_cache_implementation is not None
+        ):
+            self.model.generation_config.cache_implementation = self._original_cache_implementation
         try:
             self._uninstall_dynamic_cache()
         except Exception:  # pragma: no cover
@@ -169,9 +167,7 @@ class HuggingFaceAdapter:
                 layer_idx: int,
                 cache_kwargs: dict | None = None,
             ):
-                out = super().update(
-                    key_states, value_states, layer_idx, cache_kwargs
-                )
+                out = super().update(key_states, value_states, layer_idx, cache_kwargs)
                 if cache._manager is not None:
                     layer_obj = self.layers[layer_idx]  # type: ignore[attr-defined]
                     k = layer_obj.keys
@@ -180,8 +176,7 @@ class HuggingFaceAdapter:
                     if cache._stats is not None:
                         cache._stats.compress_calls += 1
                         cache._stats.bytes_original += (
-                            k.numel() * k.element_size()
-                            + v.numel() * v.element_size()
+                            k.numel() * k.element_size() + v.numel() * v.element_size()
                         )
                         # Update bytes_compressed by reading from manager.
                         cache._stats.bytes_compressed = cache._manager.memory_used()

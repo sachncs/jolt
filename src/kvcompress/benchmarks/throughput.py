@@ -16,7 +16,7 @@ from kvcompress.compressor.lowrank import LowRankCompressor
 log = logging.getLogger(__name__)
 
 
-def time_call(fn: callable, n_warmup: int = 1, n_iter: int = 5) -> float:
+def time_call(fn, n_warmup: int = 1, n_iter: int = 5) -> float:
     """Return mean wall time in milliseconds across ``n_iter`` calls."""
     for _ in range(n_warmup):
         fn()
@@ -79,9 +79,7 @@ def main() -> None:
     parser.add_argument("--output", type=str, default=None)
     args = parser.parse_args()
 
-    rows = run_speed_sweep(
-        m=args.m, T=args.T, dh=args.dh, ratio=args.ratio, seed=args.seed
-    )
+    rows = run_speed_sweep(m=args.m, T=args.T, dh=args.dh, ratio=args.ratio, seed=args.seed)
 
     print(f"{'method':<14} {'compress_ms':>14} {'decompress_ms':>14} {'ratio':>10}")
     print("-" * 60)

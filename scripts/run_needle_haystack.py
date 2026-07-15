@@ -19,9 +19,7 @@ import torch
 log = logging.getLogger(__name__)
 
 
-def make_needle_context(
-    needle: str, context_length: int, seed: int = 0
-) -> tuple[str, int]:
+def make_needle_context(needle: str, context_length: int, seed: int = 0) -> tuple[str, int]:
     """Return (full_text, position_of_needle) for a context of ~``context_length`` tokens."""
     rng = random.Random(seed)
     filler = "The grass is green. The sky is blue. The sun is yellow. "

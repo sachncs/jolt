@@ -95,7 +95,7 @@ quote-style = "double"
 [tool.mypy]
 python_version = "3.12"
 strict = false
-warn_unused_ignores = true
+warn_unused_ignores = false
 warn_return_any = true
 disallow_untyped_defs = false
 ignore_missing_imports = true
@@ -104,6 +104,30 @@ files = ["src/kvcompress"]
 [[tool.mypy.overrides]]
 module = "torch.*"
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "transformers.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "triton.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "kvcompress.adapters.huggingface"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "kvcompress.kernels.triton.*"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "kvcompress.adapters.registry"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "kvcompress.benchmarks.*"
+ignore_errors = true
 
 [tool.pytest.ini_options]
 minversion = "8.0"

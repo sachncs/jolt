@@ -24,7 +24,6 @@ JL-residual code path.
 from __future__ import annotations
 
 import logging
-import math
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
@@ -52,8 +51,7 @@ class Quantizer(Protocol):
         *,
         scale: torch.Tensor | None = None,
         zero_point: torch.Tensor | None = None,
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        ...
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]: ...
 
     def dequantize(
         self,
@@ -62,8 +60,7 @@ class Quantizer(Protocol):
         zero_point: torch.Tensor,
         *,
         output_dtype: torch.dtype | None = None,
-    ) -> torch.Tensor:
-        ...
+    ) -> torch.Tensor: ...
 
 
 # ---------------------------------------------------------------------------
@@ -287,9 +284,7 @@ class IntQuantizer:
         output_dtype: torch.dtype | None = None,
     ) -> torch.Tensor:
         original_last = self._original_last(q)
-        q_int = _bit_unpacking_signed(
-            q, self.bits, original_last, symmetric=self.symmetric
-        )
+        q_int = _bit_unpacking_signed(q, self.bits, original_last, symmetric=self.symmetric)
         if scale.dim() == 0:
             x_hat = (q_int - zero_point) * scale
         elif self.group_size is not None:
@@ -358,34 +353,35 @@ def get_quantizer(
     group_size: int | None = None,
 ) -> Quantizer:
     """Construct or fetch a cached quantizer."""
-    if name in ("fp16", "bf16"):
+    if name in ("fp16", "bf16", "fp8_e4m3", "fp8_e5m2"):
         key = f"float:{name}"
-        q = _QUANTIZER_REGISTRY.get(key)
-        if q is None:
-            q = FloatCastQuantizer(name=name)  # type: ignore[arg-type]
-            _QUANTIZER_REGISTRY[key] = q
-        return q
-    if name in ("fp8_e4m3", "fp8_e5m2"):
-        key = f"float:{name}"
-        q = _QUANTIZER_REGISTRY.get(key)
-        if q is None:
-            q = FloatCastQuantizer(name=name)  # type: ignore[arg-type]
-            _QUANTIZER_REGISTRY[key] = q
-        return q
+        return _get_or_create(
+            key,
+            lambda: FloatCastQuantizer(name=name),  # type: ignore[arg-type]
+        )
     if name in ("int2", "int4", "int8"):
         bits = int(name[3:])
         key = f"int:{bits}:{symmetric}:{per_channel}:{group_size}"
-        q = _QUANTIZER_REGISTRY.get(key)
-        if q is None:
-            q = IntQuantizer(
+        return _get_or_create(
+            key,
+            lambda: IntQuantizer(
                 bits=bits,
                 symmetric=symmetric,
                 per_channel=per_channel,
                 group_size=group_size,
-            )
-            _QUANTIZER_REGISTRY[key] = q
-        return q
+            ),
+        )
     raise ValueError(f"unknown quantizer name {name!r}")
+
+
+def _get_or_create(key: str, factory) -> Quantizer:
+    """Get a cached quantizer or build + cache one."""
+    cached = _QUANTIZER_REGISTRY.get(key)
+    if cached is not None:
+        return cached
+    new_q: Quantizer = factory()
+    _QUANTIZER_REGISTRY[key] = new_q
+    return new_q
 
 
 def quantize_tensor(

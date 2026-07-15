@@ -70,7 +70,7 @@ class CacheManager:
 
     def evict(self, layer: int) -> None:
         self._cache.evict_layer(layer)
-        self._live_layers = [l for l in self._live_layers if l != layer]
+        self._live_layers = [entry for entry in self._live_layers if entry != layer]
 
     # ------------------------------------------------------------------
     # Memory

@@ -49,9 +49,7 @@ class IntQuantOnlyCompressor(KVCompressor):
         self.bits = int(bits)
         self.per_channel = per_channel
         self.symmetric = symmetric
-        self.quantizer = IntQuantizer(
-            bits=bits, symmetric=symmetric, per_channel=per_channel
-        )
+        self.quantizer = IntQuantizer(bits=bits, symmetric=symmetric, per_channel=per_channel)
 
     def compress(
         self,

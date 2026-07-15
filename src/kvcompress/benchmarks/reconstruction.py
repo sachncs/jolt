@@ -21,9 +21,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import sys
 from dataclasses import dataclass
-from typing import Any
 
 import torch
 
@@ -112,7 +110,8 @@ def run_table2(
             rel_err_V=_rel_err(V, v_hat),
             bytes_K=kp.bytes_compressed,
             bytes_V=vp.bytes_compressed,
-            compression_ratio=(K.numel() * K.element_size() * 2) / (kp.bytes_compressed + vp.bytes_compressed),
+            compression_ratio=(K.numel() * K.element_size() * 2)
+            / (kp.bytes_compressed + vp.bytes_compressed),
         )
     )
 
@@ -128,7 +127,8 @@ def run_table2(
             rel_err_V=_rel_err(V, v_hat),
             bytes_K=kp.bytes_compressed,
             bytes_V=vp.bytes_compressed,
-            compression_ratio=(K.numel() * K.element_size() * 2) / (kp.bytes_compressed + vp.bytes_compressed),
+            compression_ratio=(K.numel() * K.element_size() * 2)
+            / (kp.bytes_compressed + vp.bytes_compressed),
         )
     )
 
@@ -144,7 +144,8 @@ def run_table2(
             rel_err_V=_rel_err(V, v_hat),
             bytes_K=kp.bytes_compressed,
             bytes_V=vp.bytes_compressed,
-            compression_ratio=(K.numel() * K.element_size() * 2) / (kp.bytes_compressed + vp.bytes_compressed),
+            compression_ratio=(K.numel() * K.element_size() * 2)
+            / (kp.bytes_compressed + vp.bytes_compressed),
         )
     )
 
@@ -160,7 +161,8 @@ def run_table2(
             rel_err_V=_rel_err(V, v_hat),
             bytes_K=kp.bytes_compressed,
             bytes_V=vp.bytes_compressed,
-            compression_ratio=(K.numel() * K.element_size() * 2) / (kp.bytes_compressed + vp.bytes_compressed),
+            compression_ratio=(K.numel() * K.element_size() * 2)
+            / (kp.bytes_compressed + vp.bytes_compressed),
         )
     )
 
@@ -173,9 +175,7 @@ def main() -> None:
     parser.add_argument("--T", type=int, default=1024)
     parser.add_argument("--dh", type=int, default=128)
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument(
-        "--ratio", type=float, default=2.0, help="Compression ratio target"
-    )
+    parser.add_argument("--ratio", type=float, default=2.0, help="Compression ratio target")
     parser.add_argument(
         "--output",
         type=str,
