@@ -153,9 +153,9 @@ def test_jolt_compression_actually_reduces_bytes() -> None:
     comp = JoLTCompressor(compression_ratio=3.0, bits=(0, 2, 4, 8))
     kp, vp = comp.compress(K, V)
     compressed_bytes = kp.bytes_compressed + vp.bytes_compressed
-    assert (
-        compressed_bytes < original_bytes
-    ), f"compressed {compressed_bytes} not smaller than original {original_bytes}"
+    assert compressed_bytes < original_bytes, (
+        f"compressed {compressed_bytes} not smaller than original {original_bytes}"
+    )
 
 
 def test_jolt_shape_preservation_across_compress_decompress() -> None:

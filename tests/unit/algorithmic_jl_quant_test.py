@@ -79,9 +79,9 @@ def test_jl_projection_is_orthonormal_at_limit() -> None:
     # Off-diagonal elements should be small relative to the diagonal.
     off_diag = (gram - torch.diag(torch.diagonal(gram))).abs().mean()
     diag = torch.diagonal(gram).mean()
-    assert (
-        off_diag < 0.1 * diag
-    ), f"off-diagonal mean {off_diag:.4f} too large vs diagonal {diag:.4f}"
+    assert off_diag < 0.1 * diag, (
+        f"off-diagonal mean {off_diag:.4f} too large vs diagonal {diag:.4f}"
+    )
 
 
 def test_jl_cache_returns_same_object() -> None:
@@ -117,9 +117,9 @@ def test_quant_error_bounded_by_one_bin() -> None:
         per_channel_err = (x - x_hat).abs().amax(dim=0)
         # Each channel's max error is at most half a bin (rounding) plus
         # fp32 noise.
-        assert (
-            per_channel_err <= bin_size / 2 + 1e-3
-        ).all(), f"bits={bits}: per-channel error {per_channel_err} exceeds bin/2 = {bin_size / 2}"
+        assert (per_channel_err <= bin_size / 2 + 1e-3).all(), (
+            f"bits={bits}: per-channel error {per_channel_err} exceeds bin/2 = {bin_size / 2}"
+        )
 
 
 def test_quant_error_bounded_by_one_bin_asymmetric() -> None:
@@ -135,9 +135,9 @@ def test_quant_error_bounded_by_one_bin_asymmetric() -> None:
         rng = (x.amax(dim=0) - x.amin(dim=0)).clamp(min=1e-9)
         bin_size = rng / (q.qmax - q.qmin)
         per_channel_err = (x - x_hat).abs().amax(dim=0)
-        assert (
-            per_channel_err <= bin_size + 1e-3
-        ).all(), f"bits={bits}: per-channel error {per_channel_err} exceeds bin = {bin_size}"
+        assert (per_channel_err <= bin_size + 1e-3).all(), (
+            f"bits={bits}: per-channel error {per_channel_err} exceeds bin = {bin_size}"
+        )
 
 
 def test_packing_unpacking_roundtrip_per_bit_width() -> None:
@@ -152,9 +152,9 @@ def test_packing_unpacking_roundtrip_per_bit_width() -> None:
             q_int = torch.randint(qmin, qmax + 1, (last,))
             packed = bit_packing_signed(q_int, bits, symmetric=True)
             unpacked = bit_unpacking_signed(packed, bits, last, symmetric=True)
-            assert torch.equal(
-                unpacked, q_int.to(torch.int32)
-            ), f"packing roundtrip failed for bits={bits}, last={last}"
+            assert torch.equal(unpacked, q_int.to(torch.int32)), (
+                f"packing roundtrip failed for bits={bits}, last={last}"
+            )
 
 
 def test_quantizer_dispatch_returns_int_quantizer() -> None:

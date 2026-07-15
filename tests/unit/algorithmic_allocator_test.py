@@ -42,9 +42,9 @@ def test_allocator_respects_byte_budget() -> None:
         # Achieved ratio should be within 2x of the target (either way).
         if result.achieved_ratio > 0:
             log_ratio = math.log2(result.achieved_ratio / ratio)
-            assert (
-                abs(log_ratio) < 1.5
-            ), f"target={ratio}, achieved={result.achieved_ratio:.2f}, log2={log_ratio:.2f}"
+            assert abs(log_ratio) < 1.5, (
+                f"target={ratio}, achieved={result.achieved_ratio:.2f}, log2={log_ratio:.2f}"
+            )
 
 
 def test_allocator_at_higher_ratio_uses_more_residual_bits() -> None:
@@ -64,9 +64,9 @@ def test_allocator_at_higher_ratio_uses_more_residual_bits() -> None:
         .allocations
     )
     # Higher ratio → at least as many residual bits, generally more.
-    assert (
-        bits_high >= bits_low
-    ), f"expected more bits at higher ratio: 2x={bits_low}, 4x={bits_high}"
+    assert bits_high >= bits_low, (
+        f"expected more bits at higher ratio: 2x={bits_low}, 4x={bits_high}"
+    )
 
 
 def test_allocator_error_model_is_monotone_in_tau() -> None:
@@ -114,9 +114,9 @@ def test_allocator_target_ratio_2x_picks_substantial_compression() -> None:
     cells = [Cell(shape=(4, 256, 64), kind="key", layer_group=0)]
     alloc = JointAllocator(target_ratio=2.0, bits_grid=(0, 2, 4, 8))
     result = alloc.optimize(cells)
-    assert (
-        result.achieved_ratio >= 1.5
-    ), f"achieved ratio {result.achieved_ratio:.2f} too low for 2x target"
+    assert result.achieved_ratio >= 1.5, (
+        f"achieved ratio {result.achieved_ratio:.2f} too low for 2x target"
+    )
 
 
 def test_allocator_handles_empty_cell_list() -> None:
