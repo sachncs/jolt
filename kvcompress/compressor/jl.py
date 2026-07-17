@@ -23,6 +23,7 @@ test fixtures to reset between cases.
 from __future__ import annotations
 
 import logging
+import threading
 from dataclasses import dataclass
 from typing import Literal
 
@@ -170,6 +171,7 @@ def rademacher_projection(
 
 
 PROJECTION_CACHE: dict[tuple[int, int, str, int, str], JLProjection] = {}
+_PROJECTION_CACHE_LOCK = threading.Lock()
 
 
 def cached_projection(
@@ -195,28 +197,34 @@ def cached_projection(
         int(seed),
         str(device),
     )
-    proj = PROJECTION_CACHE.get(key)
-    if proj is None:
-        if distribution == "gaussian":
-            proj = gaussian_projection(output_dim, input_dim, seed=seed, device=device, dtype=dtype)
-        elif distribution == "rademacher":
-            proj = rademacher_projection(
-                output_dim,
-                input_dim,
-                seed=seed,
-                device=device,
-                dtype=dtype,
-                sparsity=sparsity,
-            )
-        else:
-            raise ValueError(f"unknown JL distribution {distribution!r}")
-        PROJECTION_CACHE[key] = proj
+    # Ponytail: lock prevents two HF serve workers from racing on the
+    # same cache key (which would build two copies of the same matrix).
+    with _PROJECTION_CACHE_LOCK:
+        proj = PROJECTION_CACHE.get(key)
+        if proj is None:
+            if distribution == "gaussian":
+                proj = gaussian_projection(
+                    output_dim, input_dim, seed=seed, device=device, dtype=dtype
+                )
+            elif distribution == "rademacher":
+                proj = rademacher_projection(
+                    output_dim,
+                    input_dim,
+                    seed=seed,
+                    device=device,
+                    dtype=dtype,
+                    sparsity=sparsity,
+                )
+            else:
+                raise ValueError(f"unknown JL distribution {distribution!r}")
+            PROJECTION_CACHE[key] = proj
     return proj
 
 
 def clear_projection_cache() -> None:
     """Empty the global JL projection cache (test utility)."""
-    PROJECTION_CACHE.clear()
+    with _PROJECTION_CACHE_LOCK:
+        PROJECTION_CACHE.clear()
 
 
 __all__ = [

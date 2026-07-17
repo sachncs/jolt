@@ -35,6 +35,7 @@ The bit-packing offset trick:
 from __future__ import annotations
 
 import logging
+import threading
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
@@ -356,6 +357,7 @@ class IntQuantizer:
         scale: torch.Tensor,
         zero_point: torch.Tensor,
         *,
+        original_last: int | None = None,
         output_dtype: torch.dtype | None = None,
     ) -> torch.Tensor:
         """Inverse of :meth:`quantize`.
@@ -364,13 +366,21 @@ class IntQuantizer:
             q: bit-packed uint8 tensor.
             scale: per-channel / per-group / scalar scale.
             zero_point: matching zero-point tensor.
+            original_last: original last-dim length before sub-byte
+                packing. Required for 2-/4-bit quantisation. Optional for
+                8-bit, where it equals ``q.shape[-1]``.
             output_dtype: target dtype; defaults to ``fp32``.
 
         Returns:
-            Tensor of ``output_dtype`` matching the original shape (read
-            via :attr:`last_dim_hint`).
+            Tensor of ``output_dtype`` matching the original shape.
+
+        Notes:
+            ``original_last`` is passed explicitly rather than read from
+            instance state, so a quantizer cached in the registry can
+            serve payloads of varying ``dh`` without corrupting outputs.
         """
-        original_last = self.original_last(q)
+        if original_last is None:
+            original_last = int(q.shape[-1])
         q_int = bit_unpacking_signed(q, self.bits, original_last, symmetric=self.symmetric)
         if scale.dim() == 0:
             x_hat = (q_int - zero_point) * scale
@@ -385,17 +395,6 @@ class IntQuantizer:
             view_shape = [1] * (q_int.dim() - 1) + [-1]
             x_hat = (q_int - zero_point.view(view_shape)) * scale.view(view_shape)
         return x_hat.to(output_dtype or torch.float32)
-
-    def original_last(self, q: torch.Tensor) -> int:
-        """Original last-dim length before sub-byte packing.
-
-        After the user's last :meth:`compute_params`, ``last_dim_hint``
-        was set to ``x.shape[-1]``. Read it here so :meth:`dequantize`
-        can recover the original last-dim shape.
-        """
-        # Sub-byte packing changes the last dim size; we store the original
-        # last dim as metadata, but here we infer from the scale shape.
-        return int(self.last_dim_hint)
 
     def compute_params(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """Derive ``(scale, zero_point)`` from ``x``.
@@ -440,8 +439,6 @@ class IntQuantizer:
             scale = rng / (self.qmax - self.qmin)
             zero_point = torch.round(self.qmin - x_min / scale).to(torch.int32)
 
-        # Hint for dequantize: original last-dim length.
-        self.last_dim_hint = x.shape[-1]
         return scale.to(torch.float32), zero_point
 
 
@@ -451,6 +448,7 @@ class IntQuantizer:
 
 
 QUANTIZER_REGISTRY: dict[str, Quantizer] = {}
+_QUANTIZER_REGISTRY_LOCK = threading.Lock()
 
 
 def get_quantizer(
@@ -496,12 +494,16 @@ def get_quantizer(
 
 def get_or_create(key: str, factory) -> Quantizer:
     """Get a cached quantizer or build + cache one."""
-    cached = QUANTIZER_REGISTRY.get(key)
-    if cached is not None:
-        return cached
-    new_q: Quantizer = factory()
-    QUANTIZER_REGISTRY[key] = new_q
-    return new_q
+    # Ponytail: registry is global module state; ``threading.Lock`` keeps
+    # concurrent HF serve workers from building two copies of the same
+    # quantizer. Cheap and bounded; the inner factory is pure.
+    with _QUANTIZER_REGISTRY_LOCK:
+        cached = QUANTIZER_REGISTRY.get(key)
+        if cached is not None:
+            return cached
+        new_q: Quantizer = factory()
+        QUANTIZER_REGISTRY[key] = new_q
+        return new_q
 
 
 def quantize_tensor(
@@ -573,10 +575,12 @@ def dequantize_tensor(
         per_channel=per_channel,
         group_size=group_size,
     )
+    original_last = int(payload["original_last"].item())
     x = q.dequantize(
         payload["q"],
         payload["scale"],
         payload["zero_point"],
+        original_last=original_last,
         output_dtype=output_dtype,
     )
     if output_shape is not None:

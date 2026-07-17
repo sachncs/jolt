@@ -111,6 +111,23 @@ def test_non_2d_raises() -> None:
         svd.exact(torch.randn(3, 4, 5))
 
 
+def test_randomised_preserves_device() -> None:
+    """Regression test: the random sketch must live on the input's device.
+
+    Previous implementation built ``omega`` on CPU; calling
+    ``svd.randomise(cuda_a, ...)`` crashed with a device mismatch.
+    We can't reliably test CUDA in CI; the test asserts at minimum that
+    the result's ``u`` and ``vh`` live on the input's device, regardless
+    of which device that is.
+    """
+    svd = SVD(seed=0)
+    a = torch.randn(20, 20)
+    res = svd.randomise(a, rank=5)
+    assert res.u.device == a.device
+    assert res.vh.device == a.device
+    assert res.s.device == a.device
+
+
 def testtail_mass_full_rank_zero() -> None:
     svd = SVD()
     a = torch.randn(20, 20)

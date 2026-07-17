@@ -23,8 +23,15 @@ def tensor() -> torch.Tensor:
 @pytest.mark.parametrize("bits", [2, 4, 8])
 def test_int_symmetric_roundtrip(tensor: torch.Tensor, bits: int) -> None:
     q = IntQuantizer(bits=bits, symmetric=True, per_channel=True)
-    packed, scale, zp = q.quantize(tensor)
-    x_hat = q.dequantize(packed, scale, zp, output_dtype=torch.float32)
+    payload = quantize_tensor(tensor, dtype=f"int{bits}", symmetric=True, per_channel=True)
+    packed, scale, zp = payload["q"], payload["scale"], payload["zero_point"]
+    x_hat = q.dequantize(
+        packed,
+        scale,
+        zp,
+        original_last=int(payload["original_last"].item()),
+        output_dtype=torch.float32,
+    )
     err = (tensor - x_hat).abs().max().item()
     # Half a bin in the worst case.
     bin_size = (tensor.abs().amax() / q.qmax).item()
@@ -34,8 +41,15 @@ def test_int_symmetric_roundtrip(tensor: torch.Tensor, bits: int) -> None:
 @pytest.mark.parametrize("bits", [2, 4, 8])
 def test_int_asymmetric_roundtrip(tensor: torch.Tensor, bits: int) -> None:
     q = IntQuantizer(bits=bits, symmetric=False, per_channel=True)
-    packed, scale, zp = q.quantize(tensor)
-    x_hat = q.dequantize(packed, scale, zp, output_dtype=torch.float32)
+    payload = quantize_tensor(tensor, dtype=f"int{bits}", symmetric=False, per_channel=True)
+    packed, scale, zp = payload["q"], payload["scale"], payload["zero_point"]
+    x_hat = q.dequantize(
+        packed,
+        scale,
+        zp,
+        original_last=int(payload["original_last"].item()),
+        output_dtype=torch.float32,
+    )
     err = (tensor - x_hat).abs().max().item()
     rng = (tensor.amax() - tensor.amin()).item()
     bin_size = rng / (q.qmax - q.qmin)
@@ -46,7 +60,8 @@ def test_int_per_tensor() -> None:
     torch.manual_seed(0)
     x = torch.randn(4, 8)
     q = IntQuantizer(bits=8, symmetric=True, per_channel=False)
-    packed, scale, zp = q.quantize(x)
+    payload = quantize_tensor(x, dtype="int8", symmetric=True, per_channel=False)
+    packed, scale, zp = payload["q"], payload["scale"], payload["zero_point"]
     assert scale.dim() == 0
     assert zp.dim() == 0
     x_hat = q.dequantize(packed, scale, zp, output_dtype=torch.float32)
@@ -57,10 +72,19 @@ def test_int_per_group() -> None:
     torch.manual_seed(0)
     x = torch.randn(2, 8)
     q = IntQuantizer(bits=4, symmetric=True, per_channel=False, group_size=4)
-    packed, scale, zp = q.quantize(x)
+    payload = quantize_tensor(
+        x, dtype="int4", symmetric=True, per_channel=False, group_size=4
+    )
+    packed, scale, zp = payload["q"], payload["scale"], payload["zero_point"]
     # group_size=4 → 2 groups per row → scale shape (2, 2).
     assert scale.shape == (2, 2)
-    x_hat = q.dequantize(packed, scale, zp, output_dtype=torch.float32)
+    x_hat = q.dequantize(
+        packed,
+        scale,
+        zp,
+        original_last=int(payload["original_last"].item()),
+        output_dtype=torch.float32,
+    )
     assert x_hat.shape == x.shape
     err = (x - x_hat).abs().max().item()
     assert err < 0.5
@@ -71,14 +95,45 @@ def test_packing_inverse_unpacking() -> None:
     for bits in (2, 4, 8):
         q = IntQuantizer(bits=bits, symmetric=True, per_channel=True)
         x = torch.randn(4, 16) * 2
-        packed, scale, zp = q.quantize(x)
-        x_hat = q.dequantize(packed, scale, zp, output_dtype=torch.float32)
+        payload = quantize_tensor(x, dtype=f"int{bits}", symmetric=True, per_channel=True)
+        packed, scale, zp = payload["q"], payload["scale"], payload["zero_point"]
+        x_hat = q.dequantize(
+            packed,
+            scale,
+            zp,
+            original_last=int(payload["original_last"].item()),
+            output_dtype=torch.float32,
+        )
         assert x_hat.shape == x.shape
 
 
 def test_dispatch_int8() -> None:
     q = get_quantizer("int8")
     assert q.name == "int8"
+
+
+def test_registry_thread_safe() -> None:
+    """Concurrent ``get_quantizer`` calls must yield the same cached instance.
+
+    Regression: the registry used to be a bare dict; two threads on a cold
+    cache could each build their own quantizer. Now guarded by a lock.
+    """
+    import threading
+
+    results: list[int] = []
+    barrier = threading.Barrier(8)
+
+    def worker() -> None:
+        barrier.wait()
+        q = get_quantizer("int4", symmetric=False)
+        results.append(id(q))
+
+    threads = [threading.Thread(target=worker) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert len(set(results)) == 1, f"got {len(set(results))} distinct quantizers"
 
 
 def test_dispatch_int4() -> None:

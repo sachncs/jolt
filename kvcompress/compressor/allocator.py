@@ -141,6 +141,7 @@ class JointAllocator:
         *,
         epsilon_squared: dict[int, float] | None = None,
         factor_dtype_bytes: int = 2,
+        element_size_bytes: int = 2,
         max_token_rank: int = 512,
         bits_grid: tuple[int, ...] = (0, 2, 4, 8),
     ) -> None:
@@ -149,6 +150,7 @@ class JointAllocator:
         self.target_ratio = float(target_ratio)
         self.epsilon_squared = dict(epsilon_squared or DEFAULT_EPSILON_SQUARED)
         self.factor_dtype_bytes = int(factor_dtype_bytes)
+        self.element_size_bytes = int(element_size_bytes)
         self.max_token_rank = int(max_token_rank)
         self.bits_grid = tuple(bits_grid)
 
@@ -204,14 +206,16 @@ class JointAllocator:
             )
 
         if original_bytes is None:
-            original_bytes = sum(bytes_original(c.shape) for c in cells)
+            original_bytes = sum(
+                bytes_original(c.shape, self.element_size_bytes) for c in cells
+            )
         target_bytes = max(1, int(round(original_bytes / self.target_ratio)))
 
         # Per-cell candidate grid: (rT, rd, b).
         per_cell_grid: list[list[Allocation]] = []
         original_per_cell: list[int] = []
         for idx, cell in enumerate(cells):
-            original_per_cell.append(bytes_original(cell.shape))
+            original_per_cell.append(bytes_original(cell.shape, self.element_size_bytes))
             grid = self.build_cell_grid(cell, tau_table, idx)
             per_cell_grid.append(grid)
             log.debug(
@@ -475,11 +479,13 @@ class GreedyAllocator:
         target_ratio: float,
         *,
         factor_dtype_bytes: int = 2,
+        element_size_bytes: int = 2,
         max_token_rank: int = 512,
         bits_grid: tuple[int, ...] = (0, 2, 4, 8),
     ) -> None:
         self.target_ratio = float(target_ratio)
         self.factor_dtype_bytes = int(factor_dtype_bytes)
+        self.element_size_bytes = int(element_size_bytes)
         self.max_token_rank = int(max_token_rank)
         self.bits_grid = tuple(bits_grid)
 
@@ -507,7 +513,7 @@ class GreedyAllocator:
                 achieved_ratio=1.0,
                 target_ratio=self.target_ratio,
             )
-        original = sum(bytes_original(c.shape) for c in cells)
+        original = sum(bytes_original(c.shape, self.element_size_bytes) for c in cells)
         target = max(1, int(round(original / self.target_ratio)))
         # Initial: largest rank, no bits.
         current: list[Allocation] = []
@@ -598,19 +604,27 @@ class GreedyAllocator:
 # ---------------------------------------------------------------------------
 
 
-def bytes_original(shape: tuple[int, int, int]) -> int:
-    """Uncompressed byte count for a cell, assuming fp16 storage.
+def bytes_original(
+    shape: tuple[int, int, int],
+    element_size_bytes: int = 2,
+) -> int:
+    """Uncompressed byte count for a cell.
 
     Used by the allocator to translate ``target_ratio`` into a byte
     budget: ``target_bytes = bytes_original / target_ratio``.
 
-    The fp16 assumption matches the default K/V dtype that the HF
-    adapter passes in. Override if you store the cache in fp32.
+    Args:
+        shape: cell shape ``(m, T, dh)``.
+        element_size_bytes: bytes per scalar in the uncompressed K/V.
+            Defaults to ``2`` (fp16) for backwards compatibility with
+            callers that historically assumed the HF adapter stores
+            cache tensors in fp16. Pass the model's actual dtype
+            element size to match a fp32 cache.
     """
     n = 1
     for d in shape:
         n *= d
-    return n * 2  # fp16
+    return n * int(element_size_bytes)
 
 
 def candidate_feature_ranks(d: int) -> list[int]:

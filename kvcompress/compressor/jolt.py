@@ -120,9 +120,14 @@ class JoLTCompressor(KVCompressor):
         self.bits = tuple(bits)
         self.factor_dtype = factor_dtype
         self.jl_distribution = jl_distribution
+        # Ponytail: allocator defaults to fp16 element size; pass
+        # ``element_size_bytes=...`` to match a fp32 cache (allocator
+        # bytes budget then doubles and the achieved ratio lands at the
+        # user-requested target instead of half).
         self.allocator = allocator or JointAllocator(
             target_ratio=compression_ratio,
             bits_grid=self.bits,
+            factor_dtype_bytes=factor_dtype.itemsize,
         )
         self.svd = svd or SVD(seed=seed, method="exact")
         self.symmetric_quant = symmetric_quant

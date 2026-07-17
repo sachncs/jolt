@@ -110,8 +110,15 @@ def test_quant_error_bounded_by_one_bin() -> None:
     x = torch.randn(8, 16) * 4.0
     for bits in (2, 4, 8):
         q = IntQuantizer(bits=bits, symmetric=True, per_channel=True)
-        packed, scale, zp = q.quantize(x)
-        x_hat = q.dequantize(packed, scale, zp, output_dtype=torch.float32)
+        payload = quantize_tensor(x, dtype=f"int{bits}", symmetric=True, per_channel=True)
+        packed, scale, zp = payload["q"], payload["scale"], payload["zero_point"]
+        x_hat = q.dequantize(
+            packed,
+            scale,
+            zp,
+            original_last=int(payload["original_last"].item()),
+            output_dtype=torch.float32,
+        )
         # Per-channel bin size.
         bin_size = (x.abs().amax(dim=0) / q.qmax).clamp(min=1e-9)
         per_channel_err = (x - x_hat).abs().amax(dim=0)
@@ -129,8 +136,15 @@ def test_quant_error_bounded_by_one_bin_asymmetric() -> None:
     x = torch.randn(4, 8) * 4.0
     for bits in (2, 4, 8):
         q = IntQuantizer(bits=bits, symmetric=False, per_channel=True)
-        packed, scale, zp = q.quantize(x)
-        x_hat = q.dequantize(packed, scale, zp, output_dtype=torch.float32)
+        payload = quantize_tensor(x, dtype=f"int{bits}", symmetric=False, per_channel=True)
+        packed, scale, zp = payload["q"], payload["scale"], payload["zero_point"]
+        x_hat = q.dequantize(
+            packed,
+            scale,
+            zp,
+            original_last=int(payload["original_last"].item()),
+            output_dtype=torch.float32,
+        )
         # Bin size = (xmax - xmin) / (qmax - qmin).
         rng = (x.amax(dim=0) - x.amin(dim=0)).clamp(min=1e-9)
         bin_size = rng / (q.qmax - q.qmin)
@@ -177,6 +191,30 @@ def test_quantize_tensor_round_trip_preserves_shape() -> None:
         assert x_hat.shape == x.shape, f"shape mismatch: {x.shape} -> {x_hat.shape}"
 
 
+def test_quant_registry_survives_shape_change() -> None:
+    """Regression test: the cached quantizer must serve payloads of
+    different ``dh`` without corrupting outputs.
+
+    Previously ``IntQuantizer`` stored ``last_dim_hint`` on the cached
+    instance; a quantizer reused for two payloads of different ``dh``
+    would unpack the second at the first's width. The fix moves
+    ``original_last`` to an explicit kwarg so the registry stays pure.
+    """
+    q = get_quantizer("int4")  # cached in registry
+    # Payload A: dh = 8.
+    payload_a = quantize_tensor(torch.randn(4, 8), dtype="int4")
+    # Payload B: dh = 16 — different shape, same quantizer.
+    payload_b = quantize_tensor(torch.randn(4, 16), dtype="int4")
+    a_hat = q.dequantize(
+        payload_a["q"], payload_a["scale"], payload_a["zero_point"], original_last=8
+    )
+    b_hat = q.dequantize(
+        payload_b["q"], payload_b["scale"], payload_b["zero_point"], original_last=16
+    )
+    assert a_hat.shape == (4, 8), f"A unpacking wrong: {a_hat.shape}"
+    assert b_hat.shape == (4, 16), f"B unpacking wrong: {b_hat.shape}"
+
+
 def test_quant_round_trip_converges_for_smooth_signals() -> None:
     """A smooth signal (e.g. ``sin(x)``) is well-approximated by 4-bit
     quantisation because the per-channel scale adapts to the local range.
@@ -184,8 +222,15 @@ def test_quant_round_trip_converges_for_smooth_signals() -> None:
     x = torch.linspace(-3, 3, 100).unsqueeze(0)
     for bits in (4, 8):
         q = IntQuantizer(bits=bits, symmetric=True, per_channel=True)
-        packed, scale, zp = q.quantize(x)
-        x_hat = q.dequantize(packed, scale, zp, output_dtype=torch.float32)
+        payload = quantize_tensor(x, dtype=f"int{bits}", symmetric=True, per_channel=True)
+        packed, scale, zp = payload["q"], payload["scale"], payload["zero_point"]
+        x_hat = q.dequantize(
+            packed,
+            scale,
+            zp,
+            original_last=int(payload["original_last"].item()),
+            output_dtype=torch.float32,
+        )
         rel_err = (x - x_hat).norm() / x.norm()
         assert rel_err < 0.1, f"bits={bits}: rel_err={rel_err.item()}"
 
@@ -203,9 +248,21 @@ def test_quant_per_group_smaller_error_than_per_tensor() -> None:
     ).unsqueeze(0)
     q_per_tensor = IntQuantizer(bits=4, symmetric=True, per_channel=False)
     q_per_group = IntQuantizer(bits=4, symmetric=True, per_channel=False, group_size=20)
-    p1 = q_per_tensor.quantize(x)
-    p2 = q_per_group.quantize(x)
-    err_t = (x - q_per_tensor.dequantize(*p1)).norm() / x.norm()
-    err_g = (x - q_per_group.dequantize(*p2)).norm() / x.norm()
+    p1_t = quantize_tensor(x, dtype="int4", symmetric=True, per_channel=False)
+    p2_g = quantize_tensor(
+        x, dtype="int4", symmetric=True, per_channel=False, group_size=20
+    )
+    err_t = (
+        x
+        - q_per_tensor.dequantize(
+            p1_t["q"], p1_t["scale"], p1_t["zero_point"], original_last=100
+        )
+    ).norm() / x.norm()
+    err_g = (
+        x
+        - q_per_group.dequantize(
+            p2_g["q"], p2_g["scale"], p2_g["zero_point"], original_last=100
+        )
+    ).norm() / x.norm()
     # Per-group should be at least as good as per-tensor (often better).
     assert err_g <= err_t + 1e-9, f"per-group {err_g} > per-tensor {err_t}"

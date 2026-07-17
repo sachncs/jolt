@@ -275,10 +275,11 @@ class HuggingFaceAdapter:
                     cache.manager.store(layer_idx, k, v)
                     if cache.stats_ref is not None:
                         cache.stats_ref.compress_calls += 1
-                        cache.stats_ref.bytes_original += (
-                            k.numel() * k.element_size() + v.numel() * v.element_size()
-                        )
-                        # Update bytes_compressed by reading from manager.
+                        # Read both counts from the manager so they
+                        # reflect the current cache state, not an
+                        # accumulating per-call counter. Re-store
+                        # replaces the metadata entry, not adds to it.
+                        cache.stats_ref.bytes_original = cache.manager.memory_original()
                         cache.stats_ref.bytes_compressed = cache.manager.memory_used()
                 return out
 

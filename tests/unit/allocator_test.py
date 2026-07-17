@@ -129,3 +129,23 @@ def test_allocator_achieves_target_within_rounding() -> None:
         # Discrete grid; log-space ratio distance to target ≤ 1.0 nat.
         score = abs(math.log(res.achieved_ratio) - math.log(ratio))
         assert score < 1.0, f"ratio={ratio}: achieved={res.achieved_ratio:.2f}, score={score:.2f}"
+
+
+def test_allocator_respects_fp32_element_size() -> None:
+    """Regression: an fp32 cache must hit the *fp32* target ratio.
+
+    Previously ``bytes_original`` hardcoded ``*2`` (fp16), so a fp32
+    cache achieved half the requested ratio. With
+    ``element_size_bytes=4`` the budget doubles and the achieved
+    ratio reflects the fp32 cost model.
+    """
+    cells = [Cell(shape=(4, 64, 32), kind="key")]
+    alloc_fp32 = JointAllocator(target_ratio=2.0, element_size_bytes=4).optimize(cells)
+    alloc_fp16 = JointAllocator(target_ratio=2.0, element_size_bytes=2).optimize(cells)
+    # The fp32 path sees a larger total_bytes budget (twice the bytes
+    # available) and so its achieved_ratio should reflect the larger
+    # cost model. We assert the budgets scale by 2x rather than poking
+    # at achieved_ratio directly (the cost grid is discrete).
+    assert alloc_fp32.target_bytes == 2 * alloc_fp16.target_bytes, (
+        f"fp32 target {alloc_fp32.target_bytes} should be 2x fp16 {alloc_fp16.target_bytes}"
+    )

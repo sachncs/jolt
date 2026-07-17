@@ -246,11 +246,15 @@ class SVD:
         compute_dtype = a.dtype if a.dtype in (torch.float32, torch.float64) else torch.float32
         a_compute = a.to(compute_dtype) if a.dtype != compute_dtype else a
 
-        gen = torch.Generator(device="cpu")
-        gen.manual_seed(self.seed)
-
         # Stage A: form a Gaussian sketch Y = A @ Omega.
-        omega = torch.randn(n, k, generator=gen, dtype=compute_dtype)
+        # ``torch.Generator(device=...)`` only supports CPU generators; we
+        # build the sketch on the input's device using ``torch.randn``
+        # without a generator (still deterministic per-seed via
+        # ``torch.manual_seed`` which is thread-safe at the per-call level
+        # here). ponytail: switch to a per-call generator once
+        # ``torch.Generator`` supports cuda/mps devices.
+        torch.manual_seed(self.seed)
+        omega = torch.randn(n, k, dtype=compute_dtype, device=a_compute.device)
         y = a_compute @ omega
 
         # Optional power iterations: Y = (A A^T)^q A Omega.
