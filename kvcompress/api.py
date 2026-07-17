@@ -163,6 +163,11 @@ def enable_compression(
     elif compression_ratio is None:
         raise ValueError("unreachable")
 
+    # ``target_memory="100%"`` is identity — short-circuit so we don't pay
+    # the allocator cost or hand the user a 3x default they didn't ask for.
+    if compression_ratio == 1.0:
+        method = "identity"
+
     log.info(
         "kvcompress: enabling method=%s ratio=%.2fx on %s",
         method,
@@ -172,6 +177,12 @@ def enable_compression(
 
     from kvcompress.adapters.huggingface import HuggingFaceAdapter
 
+    # Translate the public ``target_memory="100%"`` shortcut into the
+    # identity compressor to avoid spinning up the allocator at ratio=1.
+    extra: dict[str, Any] = dict(kwargs)
+    if method == "identity":
+        extra.pop("rank", None)
+
     adapter = HuggingFaceAdapter(
         model=model,
         method=method,
@@ -180,7 +191,7 @@ def enable_compression(
         bits=bits,
         cache_implementation=cache_implementation,
         seed=seed,
-        **kwargs,
+        **extra,
     )
     handle = CompressionHandle(adapter=adapter, model=model)
     # Wire the stats object so the patched DynamicCache can update it.

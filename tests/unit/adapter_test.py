@@ -128,5 +128,5 @@ def test_handle_stats_dict() -> None:
 
 def test_enable_compression_unknown_method_raises() -> None:
     model = FakeModel("llama")
-    with pytest.raises(NotImplementedError, match="not implemented"):
+    with pytest.raises(NotImplementedError, match="not supported"):
         enable_compression(model, method="not-a-method", compression_ratio=2.0)

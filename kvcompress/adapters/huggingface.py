@@ -57,38 +57,15 @@ import torch
 from kvcompress.adapters.registry import install as registry_install
 from kvcompress.cache.manager import CacheManager
 from kvcompress.compressor.base import KVCompressor
-from kvcompress.compressor.flashjolt import FlashJoLTCompressor
-from kvcompress.compressor.jolt import JoLTCompressor
+from kvcompress.compressor.dispatch import build_compressor
 
 log = logging.getLogger(__name__)
 
 
-def build_compressor(method: str, **kwargs: Any) -> KVCompressor:
-    """Construct the named compressor from the public API string.
-
-    Args:
-        method: one of ``"jolt"``, ``"flashjolt"``, ``"identity"``.
-        **kwargs: forwarded to the compressor constructor.
-
-    Returns:
-        A fresh :class:`KVCompressor` instance.
-
-    Raises:
-        NotImplementedError: if ``method`` isn't one of the supported names.
-    """
-    method = method.lower()
-    if method == "jolt":
-        return JoLTCompressor(**kwargs)
-    if method == "flashjolt":
-        return FlashJoLTCompressor(**kwargs)
-    if method == "identity":
-        from kvcompress.compressor.identity import IdentityCompressor
-
-        return IdentityCompressor(**kwargs)
-    raise NotImplementedError(
-        f"compressor method {method!r} is not implemented in this milestone; "
-        "supported methods so far: 'jolt', 'flashjolt', 'identity'."
-    )
+# Re-export so existing callers (`from kvcompress.adapters.huggingface
+# import build_compressor`) keep working. New code should import from
+# ``kvcompress.compressor.dispatch`` directly.
+__all__ = ["HuggingFaceAdapter", "build_compressor"]
 
 
 class HuggingFaceAdapter:

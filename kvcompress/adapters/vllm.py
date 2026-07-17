@@ -27,7 +27,7 @@ vLLM availability:
 
 The module is importable on systems without vLLM. :func:`export_kv`
 and :func:`import_kv` only need ``transformers``, which is a hard
-dependency. The :mod:`kvpress.adapters.vllm_kv_offload` module is the
+dependency. The :mod:`kvcompress.adapters.vllm_kv_offload` module is the
 optional Shape B integration that requires vLLM.
 """
 
@@ -41,39 +41,10 @@ import torch
 from kvcompress.cache.compress import CompressedKVCache
 from kvcompress.cache.metadata import CompressionMetadata
 from kvcompress.compressor.base import KVCompressor
-from kvcompress.compressor.flashjolt import FlashJoLTCompressor
-from kvcompress.compressor.jolt import JoLTCompressor
+from kvcompress.compressor.dispatch import build_compressor
 from kvcompress.runtime.profiler import CompressionProfiler
 
 log = logging.getLogger(__name__)
-
-
-def build_compressor(method: str, **kwargs: Any) -> KVCompressor:
-    """Construct the named compressor from a public API string.
-
-    Mirrors :func:`kvcompress.adapters.huggingface.build_compressor` but
-    is duplicated here to avoid an import cycle.
-
-    Args:
-        method: ``"jolt"``, ``"flashjolt"``, or ``"identity"``.
-        **kwargs: forwarded to the compressor constructor.
-
-    Raises:
-        NotImplementedError: if ``method`` isn't supported.
-    """
-    method = method.lower()
-    if method == "jolt":
-        return JoLTCompressor(**kwargs)
-    if method == "flashjolt":
-        return FlashJoLTCompressor(**kwargs)
-    if method == "identity":
-        from kvcompress.compressor.identity import IdentityCompressor
-
-        return IdentityCompressor(**kwargs)
-    raise NotImplementedError(
-        f"compressor method {method!r} is not implemented; "
-        "supported: 'jolt', 'flashjolt', 'identity'."
-    )
 
 
 def resolve_cache(model: Any) -> Any:
@@ -320,7 +291,9 @@ def is_vllm_available() -> bool:
 
 
 __all__ = [
+    "build_compressor",
     "export_kv",
     "import_kv",
     "is_vllm_available",
+    "resolve_cache",
 ]
