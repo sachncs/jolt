@@ -110,3 +110,48 @@ def test_is_vllm_available_returns_bool() -> None:
     from kvcompress.adapters.vllm import is_vllm_available
 
     assert isinstance(is_vllm_available(), bool)
+
+
+def test_import_round_trip_recovers_kv_separately(fake_model: Any, tmp_path: Path) -> None:
+    """Regression: import_kv must populate K and V from the sidecar,
+    not pass the same tensor twice.
+
+    Previous implementation wrote ``cache.update(k_v, k_v, layer_idx)``
+    which silently stored K under both slots.
+    """
+    pytest.importorskip("safetensors")
+    from kvcompress.adapters.vllm import export_kv, import_kv
+
+    out = tmp_path / "kv.safetensors"
+    export_kv(fake_model, str(out), method="flashjolt", compression_ratio=2.0)
+
+    # New model with the same shape — same layers, all zeros.
+    torch.manual_seed(1)
+    new_layers = []
+    original_k = []
+    original_v = []
+    for layer in fake_model.past_key_values.layers:
+        k = torch.zeros_like(layer.keys)
+        v = torch.zeros_like(layer.values)
+        original_k.append(layer.keys.clone())
+        original_v.append(layer.values.clone())
+        new_layers.append(FakeDynamicLayer(k, v))
+    new_model = FakeModel(FakeDynamicCache(new_layers))
+
+    import_kv(new_model, str(out), target_memory="100%")
+
+    # K and V should be different (K must not be a copy of V).
+    for layer_idx, (k_new, v_new, k_orig, v_orig) in enumerate(
+        zip(
+            [l.keys for l in new_model.past_key_values.layers],
+            [l.values for l in new_model.past_key_values.layers],
+            original_k,
+            original_v,
+        )
+    ):
+        assert not torch.equal(k_new, v_new), f"layer {layer_idx}: K and V are identical"
+        # Reconstructed K should approximate the original K (lossy).
+        rel_err_k = float(torch.linalg.norm(k_orig - k_new) / torch.linalg.norm(k_orig))
+        rel_err_v = float(torch.linalg.norm(v_orig - v_new) / torch.linalg.norm(v_orig))
+        assert rel_err_k < 1.5, f"layer {layer_idx}: K rel_err {rel_err_k:.3f}"
+        assert rel_err_v < 1.5, f"layer {layer_idx}: V rel_err {rel_err_v:.3f}"

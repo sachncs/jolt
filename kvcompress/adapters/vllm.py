@@ -38,6 +38,7 @@ from typing import Any
 
 import torch
 
+from kvcompress.api import parse_target_memory
 from kvcompress.cache.compress import CompressedKVCache
 from kvcompress.cache.metadata import CompressionMetadata
 from kvcompress.compressor.base import KVCompressor
@@ -141,6 +142,7 @@ def export_kv(
 
     # Now serialise.
     tensors: dict[str, torch.Tensor] = {}
+    cell_meta: dict[tuple[int, str], dict[str, Any]] = {}
     for layer_idx in tmp_cache.layers():
         for kind in ("key", "value"):
             payload = tmp_cache.payload(layer_idx, kind)
@@ -148,6 +150,19 @@ def export_kv(
                 if isinstance(t, torch.Tensor):
                     # Prefix with layer/kind for safetensors dict uniqueness.
                     tensors[f"{layer_idx}/{kind}/{name}"] = t.contiguous()
+            # Capture the per-cell metadata so import_kv can faithfully
+            # reconstruct (residual_seed, distribution, etc.). JoLT
+            # needs these; Identity/LowRank/IntQuantOnly leave them as
+            # defaults but importing them all is harmless.
+            cell_meta[(layer_idx, kind)] = {
+                "method": payload.method,
+                "shape": list(payload.shape),
+                "dtype": str(payload.dtype),
+                "metadata": {
+                    k: (v.tolist() if hasattr(v, "tolist") else v)
+                    for k, v in payload.metadata.items()
+                },
+            }
 
     save_file(tensors, path)
     log.info(
@@ -160,11 +175,20 @@ def export_kv(
 
     meta_path = path + ".meta.json"
     meta = tmp_cache.metadata()
-    meta.to_dict()  # ensure serialisable; result discarded
+    meta_dict = meta.to_dict()
+    # Ponytail: stash the per-cell metadata (which CompressionMetadata
+    # flattens) under a ``cell_metadata`` key so import_kv can rebuild
+    # the residual projection faithfully. Without this, the residual
+    # is reconstructed against an invented seed and the round-tripped
+    # cache is garbage.
+    serialisable_cells: dict[str, dict[str, Any]] = {}
+    for (layer_idx, kind), cmeta in cell_meta.items():
+        serialisable_cells[f"{layer_idx}/{kind}"] = cmeta
+    meta_dict["cell_metadata"] = serialisable_cells
     import json
 
     with open(meta_path, "w") as f:
-        json.dump(meta.to_dict(), f, indent=2)
+        json.dump(meta_dict, f, indent=2, default=str)
     log.info("export_kv: wrote metadata to %s", meta_path)
     return meta
 
@@ -181,17 +205,18 @@ def import_kv(
 ) -> CompressionMetadata:
     """Load a compressed cache from ``path`` and populate the model's cache.
 
-    The model must already be configured with the same compression
-    settings used at export time (the metadata sidecar records these,
-    but the live compression knobs on the model are user-controlled).
+    Reads ``path`` (safetensors) plus ``path.meta.json`` (sidecar written
+    by :func:`export_kv`). The sidecar carries the per-cell metadata
+    that lets us reconstruct each cell's residual projection with the
+    correct seed (the prior version invented a seed from the packed
+    tensor's numel, producing garbage on every round-trip).
 
     Args:
-        model: HF or vLLM-style model.
+        model: HF or vLLM-style model with a writable DynamicCache.
         path: source safetensors path.
         target_memory: passed to :func:`kvcompress.enable_compression`
             if the model hasn't been compressed yet (default ``"100%"``
-            = identity, since we just want to populate the existing
-            compressed cache).
+            = identity).
         compression_ratio: optional ratio override.
         method: compressor name to enable if needed.
         bits: residual bit-widths.
@@ -210,72 +235,159 @@ def import_kv(
     cache = resolve_cache(model)
     tensors = load_file(path)
 
-    # Reconstruct a CompressedKVCache from the loaded tensors.
+    # Read the sidecar so we can reconstruct each cell faithfully.
+    import json
+
+    meta_path = path + ".meta.json"
+    with open(meta_path) as f:
+        meta_dict = json.load(f)
+    cell_meta_raw = meta_dict.get("cell_metadata", {})
+
+    # If target_memory="100%" was requested, build an identity compressor
+    # for the temp cache; otherwise honour the user-specified ratio.
+    effective_ratio = compression_ratio
+    if effective_ratio is None and target_memory is not None:
+        effective_ratio = parse_target_memory(target_memory)
+    if effective_ratio == 1.0:
+        method = "identity"
+
     compressor = build_compressor(
         method,
-        compression_ratio=compression_ratio or 3.0,
+        compression_ratio=effective_ratio or 3.0,
         bits=bits,
         seed=seed,
     )
     tmp_cache = CompressedKVCache(compressor=compressor)
 
-    # Group tensors by (layer, kind).
+    # Group tensors by (layer, kind). The key is the same `{layer}/{kind}/{name}`
+    # written by export_kv.
     by_cell: dict[tuple[int, str], dict[str, torch.Tensor]] = {}
     for key, t in tensors.items():
-        layer_str, kind, name = key.split("/", 2)
-        layer_idx = int(layer_str)
+        parts = key.split("/", 2)
+        if len(parts) != 3:
+            log.warning("import_kv: skipping malformed tensor key %r", key)
+            continue
+        layer_str, kind, name = parts
+        if kind not in ("key", "value"):
+            log.warning("import_kv: skipping tensor with unknown kind %r", kind)
+            continue
+        try:
+            layer_idx = int(layer_str)
+        except ValueError:
+            log.warning("import_kv: skipping tensor with non-int layer %r", layer_str)
+            continue
         by_cell.setdefault((layer_idx, kind), {})[name] = t
 
-    # For each cell, build a payload and store it. We don't have a
-    # factory for "restore a payload from raw tensors" — instead we
-    # rebuild via a compress/decompress round-trip. This is correct but
-    # slower than a direct payload-restore; for high-throughput
-    # workflows, write a custom serialiser.
+    # Reconstruct K and V separately per cell.
+    reconstructed: dict[int, tuple[torch.Tensor, torch.Tensor]] = {}
+
+    from kvcompress.compressor.tucker import (
+        TuckerFactors,
+        reconstruct_partial_tucker,
+    )
+    from kvcompress.compressor.residual import ResidualPayload, decode_residual
+
     for (layer_idx, kind), data in by_cell.items():
-        # Pull out the original tensor shape from the core tensor.
-        core = data["core"]
-        m, rt, rd = core.shape
-        # Decompose the core into K/V via the compressor's reconstruct.
-        from kvcompress.compressor.tucker import TuckerFactors
+        cell_key = f"{layer_idx}/{kind}"
+        cell_meta = cell_meta_raw.get(cell_key, {})
+        payload_meta = cell_meta.get("metadata", {})
 
-        factors = TuckerFactors(
-            core=core.to(torch.float32),
-            u_token=data["u_token"].to(torch.float32),
-            u_feature=data["u_feature"].to(torch.float32),
-            token_sv=torch.empty(0),
-            feature_sv=torch.empty(0),
-            token_tail_mass=0.0,
-            feature_tail_mass=0.0,
-        )
-        from kvcompress.compressor.tucker import reconstruct_partial_tucker
-
-        k_v = reconstruct_partial_tucker(factors, (m, rt, rd))
-        if "residual_packed" in data:
-            from kvcompress.compressor.residual import ResidualPayload
-
-            res = ResidualPayload(
-                projection_seed=int(data["residual_packed"].numel()),
-                projection_distribution="gaussian",
-                projection_sparsity=1.0,
-                quant_dtype=f"int{int(data['residual_dtype'].item())}",
-                symmetric=True,
-                per_channel=True,
-                group_size=None,
-                packed=data["residual_packed"],
-                scale=data["residual_scale"],
-                zero_point=data["residual_zero_point"],
-                original_shape=tuple(int(d) for d in data["residual_original_shape"].tolist()),
-                original_last=int(data["residual_original_last"].item()),
+        # JoLT path: reconstruct Tucker core + decode residual.
+        if "core" in data and "u_token" in data and "u_feature" in data:
+            core = data["core"]
+            m, rt, rd = core.shape
+            # u_token shape is (T, rt); u_feature shape is (dh, rd).
+            # Recover the original (m, T, dh) so reconstruct_partial_tucker
+            # can validate against it.
+            T = int(data["u_token"].shape[0])
+            dh = int(data["u_feature"].shape[0])
+            factors = TuckerFactors(
+                core=core.to(torch.float32),
+                u_token=data["u_token"].to(torch.float32),
+                u_feature=data["u_feature"].to(torch.float32),
+                token_sv=torch.empty(0),
+                feature_sv=torch.empty(0),
+                token_tail_mass=float(payload_meta.get("tail_token_mass", 0.0)),
+                feature_tail_mass=float(payload_meta.get("tail_feature_mass", 0.0)),
             )
-            from kvcompress.compressor.residual import decode_residual
+            recon = reconstruct_partial_tucker(factors, (m, T, dh))
+            if "residual_packed" in data:
+                # Ponytail: the seed MUST come from the sidecar, not the
+                # tensor's numel. The prior version invented a seed and
+                # the residual projection was rebuilt against a random
+                # matrix; round-tripped caches were garbage.
+                seed_val = int(payload_meta.get("residual_seed", 0))
+                quant_dtype_int = int(payload_meta.get("residual_dtype", 0))
+                quant_dtype = f"int{quant_dtype_int}" if quant_dtype_int > 0 else "int0"
+                res = ResidualPayload(
+                    projection_seed=seed_val,
+                    projection_distribution=payload_meta.get(
+                        "residual_distribution", "gaussian"
+                    ),
+                    projection_sparsity=float(
+                        payload_meta.get("residual_sparsity", 1.0)
+                    ),
+                    quant_dtype=quant_dtype,
+                    symmetric=bool(payload_meta.get("residual_symmetric", True)),
+                    per_channel=bool(payload_meta.get("residual_per_channel", True)),
+                    group_size=payload_meta.get("residual_group_size"),
+                    packed=data["residual_packed"],
+                    scale=data["residual_scale"],
+                    zero_point=data["residual_zero_point"],
+                    original_shape=tuple(
+                        int(d) for d in data["residual_original_shape"].tolist()
+                    ),
+                    original_last=int(data["residual_original_last"].item()),
+                )
+                recon = recon + decode_residual(res)
+            tensor = recon.to(torch.float32)
+        elif "value" in data:
+            # Identity path: the tensor was stored verbatim under "value".
+            tensor = data["value"]
+        elif "u" in data and "s" in data and "vh" in data:
+            # LowRank path.
+            u = data["u"].to(torch.float32)
+            s = data["s"].to(torch.float32)
+            vh = data["vh"].to(torch.float32)
+            m = int(payload_meta.get("m", u.shape[0]))
+            T = int(payload_meta.get("T", 1))
+            tensor = (u * s) @ vh
+            tensor = tensor.reshape(m, T, -1)
+        else:
+            log.warning(
+                "import_kv: skipping cell %s with unknown data schema %s",
+                cell_key,
+                list(data.keys()),
+            )
+            continue
 
-            k_v = k_v + decode_residual(res)
-        # Round-trip through the compressor's reconstruct path: we
-        # already have K/V; just feed it into the model's cache via
-        # the DynamicCache.update path.
-        cache.update(k_v.to(k_v.dtype), k_v.to(k_v.dtype), layer_idx)
+        if layer_idx not in reconstructed:
+            reconstructed[layer_idx] = (None, None)  # type: ignore[assignment]
+        k, v = reconstructed[layer_idx]
+        if kind == "key":
+            reconstructed[layer_idx] = (tensor, v)
+        else:
+            reconstructed[layer_idx] = (k, tensor)
 
-    log.info("import_kv: loaded %d cells from %s", len(by_cell), path)
+    # Populate the model's cache. We bypass ``cache.update`` to avoid
+    # double-compression if the cache has been patched with a compressor.
+    layers_attr = getattr(cache, "layers", None)
+    for layer_idx, (k, v) in reconstructed.items():
+        if k is None or v is None:
+            log.warning(
+                "import_kv: layer %d missing K or V (k=%s, v=%s)",
+                layer_idx,
+                k is not None,
+                v is not None,
+            )
+            continue
+        if layers_attr is not None and layer_idx < len(layers_attr):
+            layers_attr[layer_idx].keys = k
+            layers_attr[layer_idx].values = v
+        else:
+            cache.update(k, v, layer_idx)
+
+    log.info("import_kv: loaded %d layers from %s", len(reconstructed), path)
     meta = tmp_cache.metadata()
     return meta
 
