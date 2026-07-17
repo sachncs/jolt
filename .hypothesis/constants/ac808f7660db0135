@@ -1,4 +1,0 @@
-# file: /Users/sachin/repo/jolt/src/kvcompress/runtime/memory.py
-# hypothesis_version: 6.148.6
-
-['MemoryPool', 'cpu', 'num_keys', 'total_buffers']

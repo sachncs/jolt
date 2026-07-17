@@ -25,7 +25,7 @@ pip install "kvcompress[docs]"     # mkdocs for documentation
 ## From source
 
 ```bash
-git clone https://github.com/anomalyco/kvcompress
+git clone https://github.com/sachncs/jolt
 cd kvcompress
 pip install -e ".[dev,bench,docs]"
 ```

@@ -12,8 +12,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
-        python: ["3.12"]
+        os: [ubuntu-latest, macos-latest]
+        python: ["3.11", "3.12", "3.13"]
 
     steps:
       - uses: actions/checkout@v4
@@ -42,9 +42,9 @@ jobs:
 
       - name: Unit tests + coverage
         run: |
-          pytest --cov=kvcompress --cov-report=term-missing \
+          python -m pytest --cov=kvcompress --cov-report=term-missing \
                  -m "not slow and not integration and not gpu"
 
       - name: Coverage gate
         run: |
-          coverage report --fail-under=70
+          coverage report --fail-under=80

@@ -1,4 +1,0 @@
-# file: /Users/sachin/repo/jolt/src/kvcompress/compressor/flashjolt.py
-# hypothesis_version: 6.148.6
-
-[3.0, 5.0, 512, 'FlashJoLTCompressor', 'flashjolt', 'flashjolt_cap', 'randomised', 'seed']

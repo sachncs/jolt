@@ -1,4 +1,0 @@
-# file: /Users/sachin/repo/jolt/src/kvcompress/kernels/triton/tucker_reconstruct.py
-# hypothesis_version: 6.148.6
-
-[0.0, 'mar,ta,dr->mtd', 'torch.Tensor']

@@ -3,7 +3,7 @@
 ## Clone and install
 
 ```bash
-git clone https://github.com/anomalyco/kvcompress
+git clone https://github.com/sachncs/jolt
 cd kvcompress
 pip install -e ".[dev,bench,docs]"
 ```
