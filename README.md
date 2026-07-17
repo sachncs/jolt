@@ -5,7 +5,7 @@
     <a href="https://www.python.org"><img src="https://img.shields.io/badge/python-3.12%2B-blue" alt="Python"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-green" alt="License"></a>
     <a href="https://arxiv.org/abs/2607.12550"><img src="https://img.shields.io/badge/arXiv-2607.12550-red" alt="Paper"></a>
-    <a href="https://github.com/sachncs/jolt/actions"><img src="https://img.shields.io/github/actions/workflow/status/sachncs/jolt/ci.yaml?branch=master" alt="CI"></a>
+    <a href="https://github.com/sachncs/kvcompress/actions"><img src="https://img.shields.io/github/actions/workflow/status/sachncs/kvcompress/ci.yaml?branch=master" alt="CI"></a>
   </p>
 </p>
 
@@ -53,7 +53,7 @@ pip install kvcompress
 ### From source
 
 ```bash
-git clone https://github.com/sachncs/jolt.git
+git clone https://github.com/sachncs/kvcompress.git
 cd jolt
 pip install -e .
 ```

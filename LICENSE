@@ -17,7 +17,7 @@ Copyright 2026 sachin
    limitations under the License.
 
 This product includes software developed at
-various contributors (https://github.com/sachncs/jolt).
+various contributors (https://github.com/sachncs/kvcompress).
 
 The JoLT algorithm is described in:
     Krishnan, R. & Schulz, V. "A JoLT for the KV Cache: Near-Lossless

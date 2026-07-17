@@ -55,9 +55,9 @@ docs = [
 kvcompress = "kvcompress.cli:app"
 
 [project.urls]
-Homepage = "https://github.com/sachncs/jolt"
+Homepage = "https://github.com/sachncs/kvcompress"
 Paper = "https://arxiv.org/abs/2607.12550"
-Changelog = "https://github.com/sachncs/jolt/blob/master/CHANGELOG.md"
+Changelog = "https://github.com/sachncs/kvcompress/blob/master/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 where = ["."]
