@@ -449,7 +449,7 @@ class IntQuantizer:
 
 
 QUANTIZER_REGISTRY: dict[str, Quantizer] = {}
-_QUANTIZER_REGISTRY_LOCK = threading.Lock()
+QUANTIZER_REGISTRY_LOCK = threading.Lock()
 
 
 def get_quantizer(
@@ -498,7 +498,7 @@ def get_or_create(key: str, factory) -> Quantizer:
     # Ponytail: registry is global module state; ``threading.Lock`` keeps
     # concurrent HF serve workers from building two copies of the same
     # quantizer. Cheap and bounded; the inner factory is pure.
-    with _QUANTIZER_REGISTRY_LOCK:
+    with QUANTIZER_REGISTRY_LOCK:
         cached = QUANTIZER_REGISTRY.get(key)
         if cached is not None:
             return cached

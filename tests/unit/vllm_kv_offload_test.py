@@ -8,10 +8,7 @@ runtime import path) is also exercised end-to-end.
 
 from __future__ import annotations
 
-import sys
 import threading
-import types
-from typing import Any
 
 import pytest
 import torch
@@ -55,7 +52,7 @@ def test_handler_instantiation_with_real_vllm() -> None:
     comp = JoLTCompressor(compression_ratio=3.0)
     handler = JoLTOffloadHandler(compressor=comp)
     assert handler.name == "jolt-offload"
-    assert handler._base_class is not None  # type: ignore[attr-defined]
+    assert handler.base_class is not None
 
 
 def test_handler_instantiation_raises_without_vllm() -> None:
@@ -209,12 +206,12 @@ def test_transfer_async_records_failure_on_exception() -> None:
     comp = IdentityCompressor(factor_dtype=torch.float32)
     handler = JoLTOffloadHandler(compressor=comp)
 
-    # Force _run_transfer to raise.
+    # Force run_transfer to raise.
     def boom(self, src, dst):  # noqa: ARG001
         raise RuntimeError("simulated failure")
 
-    original = mod.JoLTOffloadHandler._run_transfer
-    mod.JoLTOffloadHandler._run_transfer = boom
+    original = mod.JoLTOffloadHandler.run_transfer
+    mod.JoLTOffloadHandler.run_transfer = boom
     try:
         ok = handler.transfer_async(99, (None, None))
         assert ok is False
@@ -222,7 +219,7 @@ def test_transfer_async_records_failure_on_exception() -> None:
         assert len(finished) == 1
         assert finished[0] == (99, False)
     finally:
-        mod.JoLTOffloadHandler._run_transfer = original
+        mod.JoLTOffloadHandler.run_transfer = original
 
 
 def test_wait_returns_when_jobs_finish() -> None:
@@ -234,8 +231,8 @@ def test_wait_returns_when_jobs_finish() -> None:
     class _FakeSpec:
         blocks: list[int] = []
 
-    handler._finished_jobs.append((1, True))  # type: ignore[attr-defined]
-    handler._finished_jobs.append((2, True))  # type: ignore[attr-defined]
+    handler.finished_jobs.append((1, True))
+    handler.finished_jobs.append((2, True))
     handler.wait({1, 2})  # returns immediately
 
 

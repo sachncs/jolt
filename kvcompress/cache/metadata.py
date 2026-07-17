@@ -110,9 +110,9 @@ class CompressionMetadata:
     extras: dict[str, Any] = field(default_factory=dict)
     # Ponytail: O(1) (layer, kind) -> index lookup alongside the list.
     # The list stays the source of truth for ordering; the dict shadows
-    # it for membership checks. ``_rebuild_index`` resyncs after bulk
+    # it for membership checks. ``rebuild_index`` resyncs after bulk
     # operations that mutate the list directly (tests, deserialise).
-    _index: dict[tuple[int, str], int] = field(
+    index: dict[tuple[int, str], int] = field(
         default_factory=dict, init=False, repr=False, compare=False
     )
 
@@ -135,19 +135,19 @@ class CompressionMetadata:
         accumulating duplicates.
         """
         key = (entry.layer, entry.kind)
-        if key in self._index:
-            self.layers[self._index[key]] = entry
+        if key in self.index:
+            self.layers[self.index[key]] = entry
             return
-        self._index[key] = len(self.layers)
+        self.index[key] = len(self.layers)
         self.layers.append(entry)
 
-    def _rebuild_index(self) -> None:
+    def rebuild_index(self) -> None:
         """Resync the ``(layer, kind) -> index`` dict from ``layers``.
 
         Call this after bulk-mutating ``self.layers`` directly (e.g. in
         ``__post_init__`` after deserialisation).
         """
-        self._index = {(entry.layer, entry.kind): i for i, entry in enumerate(self.layers)}
+        self.index = {(entry.layer, entry.kind): i for i, entry in enumerate(self.layers)}
 
     def bytes_original(self) -> int:
         """Sum of uncompressed bytes across all layer entries."""
@@ -185,5 +185,5 @@ class CompressionMetadata:
             bits_allowed=tuple(d.get("bits_allowed", (0, 2, 4, 8))),
             extras=d.get("extras", {}),
         )
-        meta._rebuild_index()
+        meta.rebuild_index()
         return meta

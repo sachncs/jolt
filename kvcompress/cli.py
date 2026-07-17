@@ -109,7 +109,7 @@ def validate(
     typer.echo("kvcompress validate: OK")
 
 
-def _run_subprocess(args: list[str], label: str, timeout: float = 600.0) -> bool:
+def run_subprocess(args: list[str], label: str, timeout: float = 600.0) -> bool:
     """Run a benchmark subprocess; return True on success, False on failure.
 
     Ponytail: docstring says "a failure in one doesn't take down the
@@ -155,7 +155,7 @@ def benchmark(
         results.append(
             (
                 "memory",
-                _run_subprocess(
+                run_subprocess(
                     [
                         sys.executable,
                         "-m",
@@ -187,7 +187,7 @@ def benchmark(
         results.append(
             (
                 "speed",
-                _run_subprocess(
+                run_subprocess(
                     [
                         sys.executable,
                         "-m",
@@ -211,7 +211,7 @@ def benchmark(
         results.append(
             (
                 "reconstruction",
-                _run_subprocess(
+                run_subprocess(
                     [
                         sys.executable,
                         "-m",
@@ -247,7 +247,7 @@ def profile(
     layer_groups: int = typer.Option(1, help="number of layer groups"),
 ) -> None:
     """Profile a model with compression enabled and print cumulative stats."""
-    _run_subprocess(
+    run_subprocess(
         [
             sys.executable,
             "-m",

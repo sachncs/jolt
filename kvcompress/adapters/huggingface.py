@@ -73,14 +73,14 @@ __all__ = ["HuggingFaceAdapter", "build_compressor", "is_compression_active"]
 # ``weakref.WeakValueDictionary`` lets GC reclaim adapters when the model
 # goes out of scope (e.g. between test cases) without us having to thread
 # teardown through every call site.
-_INSTALLED_ADAPTERS: "weakref.WeakValueDictionary[int, HuggingFaceAdapter]" = (
+INSTALLED_ADAPTERS: "weakref.WeakValueDictionary[int, HuggingFaceAdapter]" = (
     weakref.WeakValueDictionary()
 )
 
 
 def is_compression_active(model: object) -> bool:
     """Return ``True`` if a :class:`HuggingFaceAdapter` is active on ``model``."""
-    return id(model) in _INSTALLED_ADAPTERS
+    return id(model) in INSTALLED_ADAPTERS
 
 
 def build_compressor(method: str, **kwargs: Any) -> KVCompressor:
@@ -170,12 +170,12 @@ class HuggingFaceAdapter:
         # attribute to avoid an import cycle with kvcompress.api.
         self.manager: CacheManager | None = None
         self.enabled = False
-        self._enable_rolled_back = False
+        self.enable_rolled_back = False
         # Snapshot of state we mutated during enable(); populated as we
         # mutate so :meth:`disable` can restore verbatim. Cleared on
         # successful disable.
-        self._original_cache_implementation: str | None = None
-        self._cache_implementation_existed: bool = False
+        self.original_cache_implementation: str | None = None
+        self.cache_implementation_existed: bool = False
         self.original_dynamic_cache_cls: type | None = None
         self.patched_cache_cls: type | None = None
         self.patched_modules: dict[str, type] = {}
@@ -212,13 +212,13 @@ class HuggingFaceAdapter:
             type(self.model).__name__,
         )
         try:
-            self._enable_inner()
+            self.enable_inner()
         except BaseException:
             # Roll back any side effects already applied.
-            self._rollback_partial_enable()
+            self.rollback_partial_enable()
             raise
 
-    def _enable_inner(self) -> None:
+    def enable_inner(self) -> None:
         """Inner enable; assumes caller handles rollback on failure."""
         self.manager = CacheManager(
             compressor=self.compressor,
@@ -226,10 +226,10 @@ class HuggingFaceAdapter:
         )
 
         if hasattr(self.model, "generation_config"):
-            self._cache_implementation_existed = hasattr(
+            self.cache_implementation_existed = hasattr(
                 self.model.generation_config, "cache_implementation"
             )
-            self._original_cache_implementation = getattr(
+            self.original_cache_implementation = getattr(
                 self.model.generation_config, "cache_implementation", None
             )
             self.model.generation_config.cache_implementation = self.cache_implementation
@@ -249,13 +249,13 @@ class HuggingFaceAdapter:
             log.info("kvcompress: installed family shim for %s", model_type)
 
         self.enabled = True
-        _INSTALLED_ADAPTERS[id(self.model)] = self
+        INSTALLED_ADAPTERS[id(self.model)] = self
 
-    def _rollback_partial_enable(self) -> None:
+    def rollback_partial_enable(self) -> None:
         """Undo whatever side effects :meth:`enable` completed before failing."""
-        if self._enable_rolled_back:
+        if self.enable_rolled_back:
             return
-        self._enable_rolled_back = True
+        self.enable_rolled_back = True
         # Undo DynamicCache patches if installed.
         if self.original_dynamic_cache_cls is not None:
             try:
@@ -265,9 +265,9 @@ class HuggingFaceAdapter:
         # Undo generation_config mutation.
         if hasattr(self.model, "generation_config"):
             try:
-                if self._cache_implementation_existed:
+                if self.cache_implementation_existed:
                     self.model.generation_config.cache_implementation = (
-                        self._original_cache_implementation
+                        self.original_cache_implementation
                     )
                 else:
                     try:
@@ -283,8 +283,13 @@ class HuggingFaceAdapter:
         generation_config."""
         if not self.enabled:
             return
-        if hasattr(self.model, "generation_config") and self._cache_implementation_existed:
-            self.model.generation_config.cache_implementation = self._original_cache_implementation
+        if (
+            hasattr(self.model, "generation_config")
+            and self.cache_implementation_existed
+        ):
+            self.model.generation_config.cache_implementation = (
+                self.original_cache_implementation
+            )
         elif hasattr(self.model, "generation_config") and hasattr(
             self.model.generation_config, "cache_implementation"
         ):
@@ -296,7 +301,7 @@ class HuggingFaceAdapter:
                 pass
         self.uninstall_dynamic_cache()
         self.enabled = False
-        _INSTALLED_ADAPTERS.pop(id(self.model), None)
+        INSTALLED_ADAPTERS.pop(id(self.model), None)
         log.info("kvcompress: disabled compression on %s", type(self.model).__name__)
 
     # ------------------------------------------------------------------

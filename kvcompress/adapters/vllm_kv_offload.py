@@ -74,7 +74,7 @@ def is_vllm_kv_offload_available() -> bool:
         return False
 
 
-def _import_vllm_base() -> type | None:
+def import_vllm_base() -> type | None:
     """Late-import the vLLM v1 KV-offload ``OffloadingHandler`` ABC.
 
     Returns ``None`` if vLLM is not installed. We don't raise here so
@@ -98,6 +98,9 @@ class ThreadSafeEvictionPool:
 
     Keyed by ``(layer, kind)`` where ``kind in {"key", "value"}``.
     Internally backed by a regular dict guarded by an ``RLock``.
+    Public attributes:
+        lock: the RLock guarding ``store``.
+        store: the underlying dict.
     """
 
     def __init__(self) -> None:
@@ -170,7 +173,7 @@ class JoLTOffloadHandler:
         eviction_pool: ThreadSafeEvictionPool | None = None,
         **kwargs: Any,
     ) -> None:
-        base_cls = _import_vllm_base()
+        base_cls = import_vllm_base()
         if base_cls is None:
             raise ImportError(
                 "JoLTOffloadHandler requires vllm>=0.19,<1.0; install with "
@@ -194,9 +197,9 @@ class JoLTOffloadHandler:
             eviction_pool if eviction_pool is not None else ThreadSafeEvictionPool()
         )
         self.lock = threading.Lock()
-        self._next_job_id = 0
-        self._finished_jobs: list[Any] = []
-        self._base_class: type = base_cls
+        self.next_job_id = 0
+        self.finished_jobs: list[Any] = []
+        self.base_class: type = base_cls
 
     # ------------------------------------------------------------------
     # OffloadingHandler surface — version-driven.
@@ -211,7 +214,7 @@ class JoLTOffloadHandler:
         """
         src_spec, dst_spec = transfer_spec
         try:
-            self._run_transfer(src_spec, dst_spec)
+            self.run_transfer(src_spec, dst_spec)
         except Exception as e:  # noqa: BLE001 — best-effort, log + report failure
             log.warning(
                 "JoLTOffloadHandler.transfer_async: transfer %d failed: %r",
@@ -219,20 +222,20 @@ class JoLTOffloadHandler:
                 e,
             )
             with self.lock:
-                self._finished_jobs.append(
-                    self._make_result(job_id, success=False)
+                self.finished_jobs.append(
+                    self.make_result(job_id, success=False)
                 )
             return False
 
         with self.lock:
-            self._finished_jobs.append(self._make_result(job_id, success=True))
+            self.finished_jobs.append(self.make_result(job_id, success=True))
         return True
 
     def get_finished(self) -> list[Any]:
         """Return and clear the list of jobs finished since last call."""
         with self.lock:
-            out = self._finished_jobs
-            self._finished_jobs = []
+            out = self.finished_jobs
+            self.finished_jobs = []
             return out
 
     def wait(self, job_ids: set[int]) -> None:
@@ -248,8 +251,8 @@ class JoLTOffloadHandler:
         deadline = time.monotonic() + 60.0
         while True:
             with self.lock:
-                # ``_finished_jobs`` holds (job_id, success) tuples.
-                done = {entry[0] for entry in self._finished_jobs}
+                # ``finished_jobs`` holds (job_id, success) tuples.
+                done = {entry[0] for entry in self.finished_jobs}
             if job_ids.issubset(done):
                 return
             if time.monotonic() > deadline:
@@ -318,7 +321,7 @@ class JoLTOffloadHandler:
     def __getattr__(self, name: str) -> Any:
         if name.startswith("__") and name.endswith("__"):
             raise AttributeError(name)
-        base = getattr(self, "_base_class", None)
+        base = getattr(self, "base_class", None)
         if base is None:
             raise AttributeError(f"JoLTOffloadHandler.{name}: base class unbound")
         attr = getattr(base, name, None)
@@ -332,7 +335,7 @@ class JoLTOffloadHandler:
     # Internals
     # ------------------------------------------------------------------
 
-    def _make_result(self, job_id: int, success: bool) -> Any:
+    def make_result(self, job_id: int, success: bool) -> Any:
         """Construct a ``TransferResult``-shaped object.
 
         We don't import :class:`TransferResult` at module level because
@@ -342,7 +345,7 @@ class JoLTOffloadHandler:
         """
         return (job_id, success)
 
-    def _run_transfer(self, src_spec: Any, dst_spec: Any) -> None:
+    def run_transfer(self, src_spec: Any, dst_spec: Any) -> None:
         """Compress src bytes into dst bytes; concrete semantics depend
         on the spec classes vLLM hands us.
 
@@ -423,4 +426,5 @@ __all__ = [
     "JoLTOffloadHandler",
     "ThreadSafeEvictionPool",
     "is_vllm_kv_offload_available",
+    "import_vllm_base",
 ]

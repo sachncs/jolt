@@ -69,7 +69,7 @@ def test_packing_unpacking_roundtrip_property(seed: int, bits: int) -> None:
     assert torch.equal(q_int.to(torch.int32), unpacked)
 
 
-def _make_smooth_tensor(m: int, T: int, dh: int, rank_T: int, rank_d: int) -> torch.Tensor:
+def make_smooth_tensor(m: int, T: int, dh: int, rank_T: int, rank_d: int) -> torch.Tensor:
     """Build a tensor with a sharp-ish spectrum for tighter error bounds.
 
     Pure Gaussian inputs have flat spectra where small ranks leave huge
@@ -99,8 +99,8 @@ def test_jolt_compressor_handles_arbitrary_shapes(m: int, T: int, dh: int) -> No
     """
     rank_T = min(T // 2, 8)
     rank_d = min(dh // 2, 4)
-    K = _make_smooth_tensor(m, T, dh, rank_T, rank_d)
-    V = _make_smooth_tensor(m, T, dh, rank_T, rank_d)
+    K = make_smooth_tensor(m, T, dh, rank_T, rank_d)
+    V = make_smooth_tensor(m, T, dh, rank_T, rank_d)
     comp = JoLTCompressor(compression_ratio=2.0, bits=(0, 4, 8))
     kp, vp = comp.compress(K, V)
     k_hat, v_hat = comp.decompress(kp, vp)
@@ -120,8 +120,8 @@ def test_jolt_roundtrip_is_bounded() -> None:
     for ratio=2.0 with bits=(0, 4, 8) on rank-r tensor inputs.
     """
     torch.manual_seed(0)
-    K = _make_smooth_tensor(m=2, T=64, dh=16, rank_T=8, rank_d=4)
-    V = _make_smooth_tensor(m=2, T=64, dh=16, rank_T=8, rank_d=4)
+    K = make_smooth_tensor(m=2, T=64, dh=16, rank_T=8, rank_d=4)
+    V = make_smooth_tensor(m=2, T=64, dh=16, rank_T=8, rank_d=4)
     comp = JoLTCompressor(compression_ratio=2.0, bits=(0, 4, 8))
     kp, vp = comp.compress(K, V)
     k_hat, v_hat = comp.decompress(kp, vp)

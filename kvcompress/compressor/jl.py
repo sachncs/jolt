@@ -171,7 +171,7 @@ def rademacher_projection(
 
 
 PROJECTION_CACHE: dict[tuple[int, int, str, int, str], JLProjection] = {}
-_PROJECTION_CACHE_LOCK = threading.Lock()
+PROJECTION_CACHE_LOCK = threading.Lock()
 
 
 def cached_projection(
@@ -199,7 +199,7 @@ def cached_projection(
     )
     # Ponytail: lock prevents two HF serve workers from racing on the
     # same cache key (which would build two copies of the same matrix).
-    with _PROJECTION_CACHE_LOCK:
+    with PROJECTION_CACHE_LOCK:
         proj = PROJECTION_CACHE.get(key)
         if proj is None:
             if distribution == "gaussian":
@@ -223,7 +223,7 @@ def cached_projection(
 
 def clear_projection_cache() -> None:
     """Empty the global JL projection cache (test utility)."""
-    with _PROJECTION_CACHE_LOCK:
+    with PROJECTION_CACHE_LOCK:
         PROJECTION_CACHE.clear()
 
 
